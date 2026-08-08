@@ -1,0 +1,23 @@
+To: Billing Department, {{hospital_name}}
+From: {{user_name}}
+Date: {{current_date}}
+Subject: Formal Dispute Regarding Overcharge on Invoice #{{invoice_id}}
+
+Dear Billing Department,
+
+I am writing to formally dispute a charge on Invoice #{{invoice_id}} issued on {{bill_date}}. Upon auditing this bill against official government price caps, the following overcharge was identified:
+
+Disputed Item: {{item_category}}
+Billed Amount: ₹{{your_value}}
+Official Government Cap: ₹{{official_value}}
+Total Disputed Overcharge: ₹{{gap_amount}}
+
+Legal Source: {{official_source}}
+Official Rule: {{rule_says_plain}}
+
+As per government mandates, charging above the prescribed ceiling price constitutes a direct violation. A provisional hold of ₹{{gap_amount}} has been staged on this transaction.
+
+I request an immediate revision of Invoice #{{invoice_id}} to reflect the official ceiling price of ₹{{official_value}}. Please issue an updated itemized bill at your earliest convenience.
+
+Sincerely,
+{{user_name}}

@@ -23,14 +23,9 @@ export async function generateDraft(gapData: any): Promise<DraftResult> {
     // Navigate from services/brain/src/pipeline/steps/06_draft.ts -> packages/templates
     const templatePath = path.resolve(__dirname, '../../../../../packages/templates/bill_complaint.txt');
     templateContent = fs.readFileSync(templatePath, 'utf8');
-    
-    if (!templateContent.trim()) {
-      // Temporary placeholder since Manas hasn't written the file yet
-      templateContent = "Dear Authority,\n\nI am writing to formally dispute a charge. The official rule states the limit is {OFFICIAL_LIMIT}, but I was charged {ACTUAL_CHARGE}. This is an illegal overcharge of {GAP_AMOUNT}.";
-    }
   } catch (err) {
     console.error("Warning: Could not read template file. Using default.", err);
-    templateContent = "Dear Authority, I am reporting an overcharge of {GAP_AMOUNT}.";
+    templateContent = "Dear Billing Department, I am reporting an overcharge of ₹{{gap_amount}}.";
   }
 
   // 2. Call IBM Granite API
@@ -39,11 +34,19 @@ export async function generateDraft(gapData: any): Promise<DraftResult> {
     // Example: const client = new WatsonXAI({ apiKey, projectId });
     // const response = await client.generateText({ modelId: 'ibm/granite-13b-instruct-v2', input: prompt });
     
-    // For now, simulate Granite filling the template (since we don't have the API key in the environment yet)
+    // For now, simulate Granite filling the template using Manas's specific {{variables}}
     let aiDraft = templateContent
-      .replace('{OFFICIAL_LIMIT}', gapData.officialValue || 'Rs. 18,000')
-      .replace('{ACTUAL_CHARGE}', gapData.actualValue || 'Rs. 45,000')
-      .replace('{GAP_AMOUNT}', gapData.gap || 'Rs. 27,000');
+      .replace(/{{official_value}}/g, gapData.officialValue || '18,000')
+      .replace(/{{your_value}}/g, gapData.actualValue || '45,000')
+      .replace(/{{gap_amount}}/g, gapData.gap || '27,000')
+      .replace(/{{invoice_id}}/g, gapData.invoiceId || 'INV-001')
+      .replace(/{{bill_date}}/g, gapData.billDate || 'Aug 8, 2026')
+      .replace(/{{user_name}}/g, gapData.userName || 'Ajit')
+      .replace(/{{hospital_name}}/g, gapData.hospitalName || 'City Hospital')
+      .replace(/{{current_date}}/g, gapData.currentDate || 'Aug 8, 2026')
+      .replace(/{{item_category}}/g, gapData.itemCategory || 'Bed Charges')
+      .replace(/{{official_source}}/g, gapData.officialSource || 'CGHS Rate Card 2024')
+      .replace(/{{rule_says_plain}}/g, gapData.ruleSaysPlain || 'Maximum allowed charge is ₹18,000.');
 
     return {
       finalDraft: aiDraft + AI_BANNER, // Mandatory Ethical Gate Requirement
@@ -55,9 +58,17 @@ export async function generateDraft(gapData: any): Promise<DraftResult> {
     console.error("Granite API Call Failed. Executing Template Fallback.", error);
     
     let fallbackDraft = templateContent
-      .replace('{OFFICIAL_LIMIT}', gapData.officialValue || 'Rs. 18,000')
-      .replace('{ACTUAL_CHARGE}', gapData.actualValue || 'Rs. 45,000')
-      .replace('{GAP_AMOUNT}', gapData.gap || 'Rs. 27,000');
+      .replace(/{{official_value}}/g, gapData.officialValue || '18,000')
+      .replace(/{{your_value}}/g, gapData.actualValue || '45,000')
+      .replace(/{{gap_amount}}/g, gapData.gap || '27,000')
+      .replace(/{{invoice_id}}/g, gapData.invoiceId || 'INV-001')
+      .replace(/{{bill_date}}/g, gapData.billDate || 'Aug 8, 2026')
+      .replace(/{{user_name}}/g, gapData.userName || 'Ajit')
+      .replace(/{{hospital_name}}/g, gapData.hospitalName || 'City Hospital')
+      .replace(/{{current_date}}/g, gapData.currentDate || 'Aug 8, 2026')
+      .replace(/{{item_category}}/g, gapData.itemCategory || 'Bed Charges')
+      .replace(/{{official_source}}/g, gapData.officialSource || 'CGHS Rate Card 2024')
+      .replace(/{{rule_says_plain}}/g, gapData.ruleSaysPlain || 'Maximum allowed charge is ₹18,000.');
 
     return {
       finalDraft: fallbackDraft + AI_BANNER,
