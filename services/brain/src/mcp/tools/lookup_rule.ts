@@ -52,9 +52,15 @@ export function loadRulebook(domain: "bill" | "lease"): RuleRow[] {
     try {
       const raw = readFileSync(realPath, "utf-8");
       const parsed = JSON.parse(raw) as RuleRow[];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    } catch {
-      // Fall through to stub
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.log(`[lookup_rule] Loaded ${parsed.length} rules from ${realPath}`);
+        return parsed;
+      }
+      console.warn(`[lookup_rule] Rulebook at ${realPath} is empty — falling back to stub.`);
+    } catch (e) {
+      // Malformed JSON or I/O error — log and fall back to stub so the engine
+      // continues with reduced accuracy rather than crashing.
+      console.warn(`[lookup_rule] RULEBOOK_LOAD_ERROR: failed to parse ${realPath} — falling back to stub.`, e);
     }
   }
 
