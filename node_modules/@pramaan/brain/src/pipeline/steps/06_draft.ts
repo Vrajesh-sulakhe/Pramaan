@@ -1,3 +1,6 @@
+// IBM: Granite — plain-language letter generation (Ajit)
+// Built with IBM Bob — AI SDLC Partner
+
 import type { ProofCard, HoldEvent, Draft } from "@pramaan/contracts";
 import fs from "fs";
 import path from "path";
@@ -17,7 +20,7 @@ export async function draft(
   let templateContent = template || "";
   if (!templateContent) {
     try {
-      const templatePath = path.resolve(__dirname, "../../../../../packages/templates/bill_complaint.txt");
+      const templatePath = path.resolve(new URL("../../../../../packages/templates/bill_complaint.txt", import.meta.url).pathname);
       templateContent = fs.readFileSync(templatePath, "utf8");
     } catch (err) {
       templateContent = "To Whom It May Concern,\n\nI am writing to dispute the following charges on my medical bill:\n\n{{ITEMS}}\n\nKindly review and issue a corrected bill.\n\nYours sincerely.";
