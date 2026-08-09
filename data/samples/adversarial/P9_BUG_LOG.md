@@ -1,0 +1,77 @@
+# P9 Bug Log — Pramaan Adversarial Testing
+> **Phase:** P9 — The Breaker Phase (Day 3, 06:30–09:00)
+> **Rule:** Ajit logs bugs here. Murgesh patches engine side only. Re-run after each fix.
+> **Cut rule:** If a bug is not fixed by 09:00 Day 3, it goes to the Cut List and is narrated around in Q&A. The happy path (seed trap + control) must always remain green.
+
+---
+
+## How to Add a Bug Entry
+
+Copy the template below, fill in the fields, and paste it under **Active Bugs**.
+
+```
+### BUG-XXX: [short title]
+- **Scenario:** S1 / S2 / S3 / S4 / S5
+- **Severity:** CRASH | WRONG_DATA | SAFETY_VIOLATION | COSMETIC
+- **Reported by:** Ajit
+- **Time:** HH:MM Day 3
+- **Input:** [what image / payload was sent]
+- **Expected:** [what the pass criterion says should happen]
+- **Actual:** [what actually happened — paste the response or error]
+- **Failing check:** [copy the check label from run_adversarial.ts output]
+- **Status:** OPEN
+```
+
+**Severity guide:**
+- `CRASH` — engine returned 500 or threw — highest priority, fix immediately
+- `SAFETY_VIOLATION` — blurred/tilted image got a PLACED hold (must always be STAGED/null)
+- `WRONG_DATA` — gap/unverified status incorrect
+- `COSMETIC` — banner missing or audit trail incomplete
+
+---
+
+## Active Bugs
+
+*(none yet — P9 has not run)*
+
+---
+
+## Fixed Bugs
+
+*(none yet)*
+
+---
+
+## Cut List
+> Bugs that could not be fixed by 09:00 Day 3. Narrate around these in Q&A.
+
+*(none yet)*
+
+---
+
+## P9 Pass Criteria Reference
+
+| Scenario | Must NOT happen | Must happen |
+|---|---|---|
+| S1 Tilted | 500 crash; PLACED hold | 200 OK; hold null or STAGED |
+| S2 Blurred | 500 crash; PLACED hold | 200 OK; hold STAGED or null; low_conf=true if fields present |
+| S3 Blank | 500 crash; non-empty fields; non-null hold | 200 OK; fields=[]; hold=null |
+| S4 Weird Table | 500 crash; gap card from null value | 200 OK; null-value fields → unverified |
+| S5 Mixed Lang | 500 crash; missing banner | 200 OK; banner always present |
+| Seed Regression | run_id ≠ demo-trap-001; non-identical bytes | Byte-identical; run_id=demo-trap-001 |
+
+---
+
+## Notes for Murgesh
+
+When Ajit reports a bug:
+1. Read the Actual response carefully — the engine side is `services/brain/src/`
+2. **Never edit inside Ajit's seam markers** (`AJIT SEAM — START/END` in `01_read.ts` and `06_draft.ts`)
+3. Fix only what is broken — no refactoring during P9
+4. Run `npx tsc --noEmit` after every fix
+5. Tell Ajit which file changed and what the fix was so he can re-run the specific scenario
+6. Check seed regression after every fix: `curl http://localhost:3000/run?seed=trap` twice, diff output
+
+---
+
+*Pramaan · HackVerse Track 3 · P9 Bug Log*

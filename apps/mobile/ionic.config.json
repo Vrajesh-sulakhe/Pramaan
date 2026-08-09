@@ -1,7 +1,0 @@
-{
-  "name": "Pramaan",
-  "integrations": {
-    "capacitor": {}
-  },
-  "type": "react-vite"
-}
