@@ -54,6 +54,7 @@ export function loadRulebook(domain: Domain): RuleRow[] {
 
         // If JSON has top-level array
         if (Array.isArray(parsed) && parsed.length > 0) {
+          console.log(`[lookup_rule] Loaded ${parsed.length} rules from ${realPath}`);
           return parsed as RuleRow[];
         }
 
@@ -63,10 +64,13 @@ export function loadRulebook(domain: Domain): RuleRow[] {
           if (Array.isArray(parsed.sections)) rows.push(...parsed.sections);
           if (Array.isArray(parsed.safety_alerts)) rows.push(...parsed.safety_alerts);
           if (Array.isArray(parsed.rules)) rows.push(...parsed.rules);
-          if (rows.length > 0) return rows;
+          if (rows.length > 0) {
+            console.log(`[lookup_rule] Loaded ${rows.length} structured rules from ${realPath}`);
+            return rows;
+          }
         }
-      } catch {
-        // Fall through
+      } catch (e) {
+        console.warn(`[lookup_rule] RULEBOOK_LOAD_ERROR: failed to parse ${realPath} — falling back to stub.`, e);
       }
     }
   }
