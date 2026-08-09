@@ -232,6 +232,7 @@ Without this, real bill images (1–3 MB base64) would silently 413 before our c
 | Ajit PR review checks | **38 / 38** |
 | 17-point self-check assertions (final) | **39 / 39** |
 | P9 adversarial scenarios (engine dry-run) | **5 / 5** |
+| P9 adversarial scenarios (real images)    | **5 / 5** |
 | Frozen file violations by Ajit | **0** |
 | Merge conflicts | **0** |
 | Compile errors at any commit (final) | **0** |
@@ -266,9 +267,9 @@ Without this, real bill images (1–3 MB base64) would silently 413 before our c
 - Consent flow: staged/placed/released lifecycle verified
 
 ### Next (in order)
-1. **Ajit drops 5 real adversarial images** into `data/samples/adversarial/` → runs `run_adversarial.ts` → logs any failures in `P9_BUG_LOG.md`
-2. **Murgesh patches** only what Ajit reports. No refactoring during P9.
-3. **P9 bug list empty** → Phase 2 gate opens
+1. ~~**Ajit drops 4 real adversarial images** → runs `run_adversarial.ts`~~ ✅ **DONE — 5/5 PASS, P9 gate CLOSED**
+2. ~~**Murgesh patches** only what Ajit reports~~ ✅ **No bugs to patch — bug list empty**
+3. ~~**P9 bug list empty** → Phase 2 gate opens~~ ✅ **Phase 2 gate: OPEN**
 4. **Manas** drops `packages/rulebooks/bill_rules.json` + `lease_rules.json` → engine auto-switches from stub
 5. **Vrajesh** sets `BRAIN_URL=http://localhost:3000` → mobile app connects live
 

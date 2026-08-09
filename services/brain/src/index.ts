@@ -17,9 +17,9 @@ import {
 import { CONTROL_SEED_FIELDS, FIXED_CONTROL_RUN_ID } from "./seeds/control.js";
 
 const app = express();
-// Raise body limit to 10 MB to accommodate base64-encoded bill images (typ. 1–3 MB).
+// Raise body limit to 50 MB to accommodate base64-encoded bill images (typ. 1–3 MB, up to 10MB+ from mobile cameras).
 // Without this, large images return a cryptic 413 from Express before our validation.
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "50mb" }));
 
 const PORT = parseInt(process.env["BRAIN_PORT"] ?? "3000", 10);
 
@@ -135,9 +135,40 @@ app.post("/consent", (req: Request, res: Response, next: NextFunction) => {
 
     try {
       if (action === "confirm_hold") {
-        billingGateway.confirm(hold_id);
+        try {
+          billingGateway.confirm(hold_id as string);
+        } catch (gatewayErr: any) {
+          if (gatewayErr.message && gatewayErr.message.startsWith("Hold not found")) {
+            const invoice_id = `inv-${(run_id as string).slice(0, 8)}`;
+            const actEvents = auditLog.list(invoice_id);
+            const staged = actEvents.find(e => e.t === "hold_staged" && (e.payload as any).hold_id === hold_id);
+            if (staged) {
+              billingGateway.promoteStaged(hold_id as string, invoice_id, (staged.payload as any).amount, (staged.payload as any).conf_floor);
+            } else {
+              throw gatewayErr;
+            }
+          } else {
+            throw gatewayErr;
+          }
+        }
       } else if (action === "withdraw_hold") {
-        billingGateway.release(hold_id, "user_withdraw");
+        try {
+          billingGateway.release(hold_id as string, "user_withdraw");
+        } catch (gatewayErr: any) {
+          if (gatewayErr.message && gatewayErr.message.startsWith("Hold not found")) {
+            const invoice_id = `inv-${(run_id as string).slice(0, 8)}`;
+            const actEvents = auditLog.list(invoice_id);
+            const staged = actEvents.find(e => e.t === "hold_staged" && (e.payload as any).hold_id === hold_id);
+            if (staged) {
+              const hold = billingGateway.promoteStaged(hold_id as string, invoice_id, (staged.payload as any).amount, (staged.payload as any).conf_floor);
+              billingGateway.release(hold.hold_id, "user_withdraw");
+            } else {
+              throw gatewayErr;
+            }
+          } else {
+            throw gatewayErr;
+          }
+        }
       }
       // send_letter: no gateway mutation, just audit
     } catch (gatewayErr) {
@@ -161,6 +192,18 @@ app.post("/consent", (req: Request, res: Response, next: NextFunction) => {
   } catch (e) {
     next(e);
   }
+});
+
+// ── GET /audit/:run_id — governance trail export ─────────────────────────────
+// Compliance officers (or judges) can inspect the full ordered AuditEvent array
+// for any run_id. Returns [] for unknown run IDs (correct — not a 404).
+app.get("/audit/:run_id", (req: Request, res: Response) => {
+  const { run_id } = req.params;
+  const events = auditLog.list(run_id);
+  const invoice_id = `inv-${run_id.slice(0, 8)}`;
+  const actEvents = auditLog.list(invoice_id);
+  const allEvents = [...events, ...actEvents].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+  res.json(allEvents);
 });
 
 // ── Global error handler — structured errors, no stack traces, no crashes ────

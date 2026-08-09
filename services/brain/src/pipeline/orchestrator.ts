@@ -57,6 +57,14 @@ export async function orchestrate(req: RunRequest): Promise<RunResponse> {
       name: "ocr" as AuditEvent["t"],
       run: async () => {
         state.fields = await read(req);
+        if (state.fields.length > 0) {
+          const sampleBbox = state.fields[0].bbox;
+          console.log(`[orchestrator] Bbox mapping check for Ajit: Format is [x, y, width, height]. Sample: [${sampleBbox.join(", ")}]`);
+          const isNormalized = sampleBbox[2] > 0 && sampleBbox[2] <= 1;
+          if (isNormalized) {
+            console.warn("[orchestrator] WARNING: Bbox coordinates appear to be normalized (0..1). Vrajesh may experience misaligned rectangles.");
+          }
+        }
       },
     },
     {

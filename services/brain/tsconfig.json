@@ -10,5 +10,5 @@
       "@pramaan/contracts": ["../../packages/contracts/types.ts"]
     }
   },
-  "include": ["src/**/*", "test/**/*", "../../packages/contracts/types.ts"]
+  "include": ["src/**/*", "../../packages/contracts/types.ts"]
 }

@@ -5,5 +5,11 @@
     "apps/*",
     "packages/*",
     "services/*"
-  ]
+  ],
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "tesseract.js": "^7.0.0"
+  }
 }

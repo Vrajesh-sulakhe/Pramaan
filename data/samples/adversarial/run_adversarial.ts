@@ -243,6 +243,32 @@ check(s5, "S5-5  hold is null/staged/placed (never crashes on partial extraction
 s5.record({ status: r5.status, field_count: (r5.body as any)?.extracted_fields?.length ?? 0,
   hold_status: (r5.body as any)?.hold?.status ?? null });
 
+// ── S6: PDF Bill (Docling adapter) ────────────────────────────────────────────
+
+console.log("\n═══ S6: PDF Bill (multi-page PDF with tables) ═══");
+console.log("    Expect: 200, no crash, Docling extracts table rows (or Tesseract fallback), banner present\n");
+const s6 = scenario("S6", "PDF Bill");
+
+const pdfImage = loadImage("sample_bill.pdf", "");
+
+if (!pdfImage) {
+  // No sample PDF available — skip gracefully, do not count as failure
+  console.log("    ⏭  PDF test skipped — no sample_bill.pdf available in IMAGE_DIR");
+  s6.record({ skipped: true });
+} else {
+  const r6 = await postJson(`${ENGINE_URL}/run`, { image: pdfImage, domain: "bill" });
+
+  check(s6, "S6-1  status = 200",           r6.status === 200, `got ${r6.status}`);
+  check(s6, "S6-2  no 500 crash",           r6.status !== 500);
+  check(s6, "S6-3  extracted_fields is array (Docling or Tesseract output)",
+    Array.isArray((r6.body as any)?.extracted_fields));
+  check(s6, "S6-4  banner always present",
+    (r6.body as any)?.draft?.banner === "AI-generated — review before sending");
+  s6.record({ status: r6.status,
+    field_count: (r6.body as any)?.extracted_fields?.length ?? 0,
+    hold_status: (r6.body as any)?.hold?.status ?? null });
+}
+
 // ── SEED REGRESSION — must survive all adversarial runs ───────────────────────
 
 console.log("\n═══ SEED REGRESSION: /run?seed=trap must remain byte-identical ═══");
@@ -256,8 +282,11 @@ console.log(`    ${seedPass ? "✅" : "❌"} Seed byte-identical + run_id=demo-t
 const scenariosPassed  = results.filter((r) => r.passed).length;
 const scenariosFailed  = results.filter((r) => !r.passed).length;
 
+const totalScenarios = results.length;
+const skippedCount = results.filter((r) => (r.actual as any)?.skipped === true).length;
+
 console.log("\n" + "═".repeat(64));
-console.log(`P9 ADVERSARIAL RESULTS: ${scenariosPassed + scenariosFailed} scenarios — ${scenariosPassed} PASS, ${scenariosFailed} FAIL`);
+console.log(`P9 ADVERSARIAL RESULTS: ${totalScenarios} scenarios (${skippedCount} skipped) — ${scenariosPassed} PASS, ${scenariosFailed} FAIL`);
 console.log(`SEED REGRESSION:        ${seedPass ? "PASS" : "FAIL"}`);
 
 if (scenariosFailed > 0 || !seedPass) {
