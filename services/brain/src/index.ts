@@ -135,9 +135,40 @@ app.post("/consent", (req: Request, res: Response, next: NextFunction) => {
 
     try {
       if (action === "confirm_hold") {
-        billingGateway.confirm(hold_id);
+        try {
+          billingGateway.confirm(hold_id as string);
+        } catch (gatewayErr: any) {
+          if (gatewayErr.message && gatewayErr.message.startsWith("Hold not found")) {
+            const invoice_id = `inv-${(run_id as string).slice(0, 8)}`;
+            const actEvents = auditLog.list(invoice_id);
+            const staged = actEvents.find(e => e.t === "hold_staged" && (e.payload as any).hold_id === hold_id);
+            if (staged) {
+              billingGateway.promoteStaged(hold_id as string, invoice_id, (staged.payload as any).amount, (staged.payload as any).conf_floor);
+            } else {
+              throw gatewayErr;
+            }
+          } else {
+            throw gatewayErr;
+          }
+        }
       } else if (action === "withdraw_hold") {
-        billingGateway.release(hold_id, "user_withdraw");
+        try {
+          billingGateway.release(hold_id as string, "user_withdraw");
+        } catch (gatewayErr: any) {
+          if (gatewayErr.message && gatewayErr.message.startsWith("Hold not found")) {
+            const invoice_id = `inv-${(run_id as string).slice(0, 8)}`;
+            const actEvents = auditLog.list(invoice_id);
+            const staged = actEvents.find(e => e.t === "hold_staged" && (e.payload as any).hold_id === hold_id);
+            if (staged) {
+              const hold = billingGateway.promoteStaged(hold_id as string, invoice_id, (staged.payload as any).amount, (staged.payload as any).conf_floor);
+              billingGateway.release(hold.hold_id, "user_withdraw");
+            } else {
+              throw gatewayErr;
+            }
+          } else {
+            throw gatewayErr;
+          }
+        }
       }
       // send_letter: no gateway mutation, just audit
     } catch (gatewayErr) {
@@ -168,7 +199,11 @@ app.post("/consent", (req: Request, res: Response, next: NextFunction) => {
 // for any run_id. Returns [] for unknown run IDs (correct — not a 404).
 app.get("/audit/:run_id", (req: Request, res: Response) => {
   const { run_id } = req.params;
-  res.json(auditLog.list(run_id));
+  const events = auditLog.list(run_id);
+  const invoice_id = `inv-${run_id.slice(0, 8)}`;
+  const actEvents = auditLog.list(invoice_id);
+  const allEvents = [...events, ...actEvents].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+  res.json(allEvents);
 });
 
 // ── Global error handler — structured errors, no stack traces, no crashes ────

@@ -46,6 +46,30 @@ class BillingGateway {
   }
 
   /**
+   * Promote a staged hold (not previously in gateway) so it can be confirmed/withdrawn.
+   */
+  promoteStaged(
+    hold_id: string,
+    invoice_id: string,
+    amount: number,
+    confidence_floor: number
+  ): HoldEvent {
+    const expires_at = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+    const hold: HoldEvent = {
+      hold_id,
+      invoice_id,
+      amount,
+      status: "placed",
+      reversible: true,
+      expires_at,
+      placed_by: "user",
+      confidence_floor,
+    };
+    this.holds.set(hold_id, hold);
+    return hold;
+  }
+
+  /**
    * Return the HoldEvent for a given hold_id.
    * Throws if not found.
    */
