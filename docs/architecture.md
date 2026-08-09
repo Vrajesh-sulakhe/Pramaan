@@ -32,121 +32,204 @@ do not create a random new top-level directory.
 
 ## 1. The tree
 
-    pramaan/
-    |
-    |-- README.md                       # one-screen project summary + how to run
-    |-- package.json                    # workspaces: apps/* packages/* services/*
-    |-- tsconfig.base.json
-    |-- .env.example                    # RUN_MODE=mock|live, IBM creds, thresholds
-    |
-    |-- apps/
-    |   |-- mobile/                     # OWNER: Vrajesh (UI) + Ajit (camera/ingest)
-    |   |   |-- ionic.config.json
-    |   |   |-- capacitor.config.ts     # native runtime; Camera plugin declared
-    |   |   |-- package.json
-    |   |   |-- src/
-    |   |   |   |-- main.tsx
-    |   |   |   |-- App.tsx             # router over the 4 screens + DomainSwitch
-    |   |   |   |-- data/
-    |   |   |   |   |-- dataSource.ts   # THE mock|live switch (playbook rule #2)
-    |   |   |   |   |-- mockRun.ts      # returns seeded /run payloads for ionic serve
-    |   |   |   |   `-- apiClient.ts    # POST /run, POST /run?seed=trap
-    |   |   |   |-- screens/            # one screen = one beat of the pitch
-    |   |   |   |   |-- CaptureScreen.tsx   # beat "Scan"   : Capacitor Camera
-    |   |   |   |   |-- ReadScreen.tsx      # beat "Read"   : image + BBoxOverlay + yellow gate
-    |   |   |   |   |-- ProofScreen.tsx     # beat "Prove/Trap": ProofCard stack
-    |   |   |   |   `-- ActScreen.tsx       # beat "Act/Consent": HoldChip + letter + tap + audit
-    |   |   |   |-- components/
-    |   |   |   |   |-- BBoxOverlay.tsx     # draws rectangles from extracted_fields[].bbox
-    |   |   |   |   |-- ConfidenceGate.tsx  # yellow "tap to confirm" when conf < threshold
-    |   |   |   |   |-- ProofCard.tsx       # your -> official -> gap + 3 anchors
-    |   |   |   |   |-- HoldChip.tsx        # amber(staged) | green(placed) | grey(released)
-    |   |   |   |   |-- ConsentButton.tsx   # the tap; calls /consent then logs audit
-    |   |   |   |   |-- AuditViewer.tsx     # scrollable immutable trail
-    |   |   |   |   |-- DraftLetter.tsx     # shows draft + the "AI-generated" banner
-    |   |   |   |   `-- DomainSwitch.tsx    # Bill | Lease dropdown (proves the tree)
-    |   |   |   |-- hooks/
-    |   |   |   |   |-- useRun.ts           # orchestrates capture -> /run -> state
-    |   |   |   |   `-- useAudit.ts
-    |   |   |   `-- lib/
-    |   |   |       `-- camera.ts           # @capacitor/camera wrapper + permissions
-    |   |   `-- public/demo/            # pre-seeded bills for the browser stage demo
-    |   |       |-- trap_bill.json
-    |   |       `-- control_bill.json
-    |   |
-    |   `-- (web-demo optional)         # NOT required: `ionic serve` already gives
-    |                                   # a browser build at phone width for the stage.
-    |                                   # Add only if you want a separate framed shell.
-    |
-    |-- services/
-    |   `-- brain/                      # OWNER: Murgesh (TRUNK)
-    |       |-- package.json
-    |       |-- src/
-    |       |   |-- index.ts            # HTTP: POST /run, POST /run?seed=trap, POST /consent
-    |       |   |-- pipeline/
-    |       |   |   |-- orchestrator.ts # watsonx Orchestrate flow wiring the 6 steps
-    |       |   |   |-- confidence.ts   # threshold gate: placed vs staged
-    |       |   |   `-- steps/          # THE TRUNK — one file per step, in order
-    |       |   |       |-- 01_read.ts      # OCR/vision -> extracted_fields[]
-    |       |   |       |-- 02_lookup.ts    # MCP lookup_rule -> matched rule rows
-    |       |   |       |-- 03_compare.ts   # DETERMINISTIC subtract -> gaps (NO LLM)
-    |       |   |       |-- 04_prove.ts     # assemble 3-anchor proof cards
-    |       |   |       |-- 05_act.ts       # MCP place_hold (provisional) | stage
-    |       |   |       `-- 06_draft.ts     # Granite fill template + banner
-    |       |   |-- mcp/
-    |       |   |   |-- server.ts       # MCP server registering the tools below
-    |       |   |   `-- tools/
-    |       |   |       |-- lookup_rule.ts
-    |       |   |       |-- place_hold.ts
-    |       |   |       |-- get_hold_status.ts
-    |       |   |       `-- release_hold.ts
-    |       |   |-- gateway/
-    |       |   |   `-- billing_gateway.ts  # MOCK billing API; in-memory hold state
-    |       |   |-- audit/
-    |       |   |   `-- audit_log.ts        # append-only writer (immutability by design)
-    |       |   `-- seeds/
-    |       |       `-- trap.ts             # deterministic payload for ?seed=trap
-    |       `-- tests/
-    |           |-- compare.test.ts         # unit: subtraction + rule matching
-    |           |-- hold.test.ts            # unit: placed/staged/released transitions
-    |           `-- pipeline.e2e.test.ts    # /run on trap + control seeds
-    |
-    |-- packages/
-    |   |-- contracts/                  # OWNER: Murgesh (publish) + all (consume)
-    |   |   |-- extracted_field.schema.json
-    |   |   |-- proof_card.schema.json
-    |   |   |-- hold_event.schema.json
-    |   |   |-- audit_event.schema.json
-    |   |   |-- run_response.schema.json
-    |   |   |-- rule_row.schema.json        # shape Manas fills (bill + lease)
-    |   |   `-- types.ts                    # TS types generated from the JSON schemas
-    |   |
-    |   |-- rulebooks/                  # OWNER: Manas (ROOTS) — the curated truth
-    |   |   |-- bill_rules.json             # 10-15 rows, every row cited
-    |   |   |-- lease_rules.json            # 5 rows (3 illegal), each with a fix
-    |   |   `-- citations.md                # citation sheet / Q&A one-pager
-    |   |
-    |   `-- templates/                  # OWNER: Manas (wording) — filled by Granite/fallback
-    |       |-- bill_complaint.txt          # {{placeholders}}
-    |       `-- lease_counter_notice.txt
-    |
-    |-- data/
-    |   `-- samples/                    # OWNER: Ajit (adversarial) + Manas (trap/control spec)
-    |       |-- trap/                       # the planted-overcharge bill (image + json)
-    |       |-- control/                    # the all-correct bill (all-green restraint beat)
-    |       `-- adversarial/                # Ajit's 5 nasty bills (tilt/blur/blank/...)
-    |
-    `-- docs/                           # all team + engineering docs live here
-        |-- pramaan-team-doc.md             # plain-language story (the "why")
-        |-- pramaan-sprint-playbook.md      # the 36-hour plan
-        |-- pramaan-traps.md                # the 4 pre-mortem fixes
-        |-- pramaan-repo-structure.md       # THIS file
-        |-- pramaan-pipeline.md             # how data travels
-        `-- pramaan-technical-reference.md  # the A-Z technical bible
+    Pramaan/
+├── .gitignore
+├── README.md
+├── package.json
+├── package-lock.json
+├── tsconfig.base.json
+│
+├── apps/
+│   └── mobile/                          # Ionic + React (Capacitor)
+│       ├── .browserslistrc
+│       ├── .gitignore
+│       ├── capacitor.config.ts
+│       ├── cypress.config.ts
+│       ├── eslint.config.js
+│       ├── index.html
+│       ├── ionic.config.json
+│       ├── package.json
+│       ├── tsconfig.json
+│       ├── tsconfig.node.json
+│       ├── vite.config.ts
+│       ├── .vscode/
+│       │   └── extensions.json
+│       ├── cypress/
+│       │   ├── e2e/
+│       │   │   └── test.cy.ts
+│       │   ├── fixtures/
+│       │   │   └── example.json
+│       │   └── support/
+│       │       ├── commands.ts
+│       │       └── e2e.ts
+│       ├── dist/
+│       ├── public/
+│       │   ├── favicon.png
+│       │   ├── manifest.json
+│       │   └── demo/
+│       │       ├── control_bill.json
+│       │       └── trap_bill.json
+│       └── src/
+│           ├── App.test.tsx
+│           ├── App.tsx
+│           ├── main.tsx
+│           ├── setupTests.ts
+│           ├── vite-env.d.ts
+│           ├── components/
+│           │   ├── AuditViewer.tsx
+│           │   ├── BBoxOverlay.tsx
+│           │   ├── ConfidenceGate.tsx
+│           │   ├── ConsentButton.tsx
+│           │   ├── DomainSwitch.tsx
+│           │   ├── DraftLetter.tsx
+│           │   ├── ExploreContainer.css
+│           │   ├── ExploreContainer.tsx
+│           │   ├── HoldChip.tsx
+│           │   └── ProofCard.tsx
+│           ├── data/
+│           │   ├── apiClient.ts
+│           │   ├── dataSource.ts
+│           │   └── mockRun.ts
+│           ├── hooks/
+│           │   ├── useAudit.ts
+│           │   └── useRun.ts
+│           ├── lib/
+│           │   └── camera.ts
+│           ├── pages/
+│           │   ├── ActPage.tsx
+│           │   ├── CapturePage.tsx
+│           │   ├── Home.css
+│           │   ├── Home.tsx
+│           │   ├── ProofPage.tsx
+│           │   └── ReadPage.tsx
+│           └── theme/
+│               └── variables.css
+│
+├── data/
+│   └── samples/
+│       ├── adversarial/
+│       │   └── .gitkeep
+│       ├── control/
+│       │   └── .gitkeep
+│       └── trap/
+│           └── .gitkeep
+│
+├── docs/
+│   ├── README.md
+│   ├── architecture.md
+│   ├── pipeline.md
+│   ├── pramaan.md
+│   ├── pramaanref.md
+│   ├── questions.md
+│   ├── roles.md
+│   ├── traps.md
+│   ├── ajit.md
+│   ├── manas.md
+│   ├── manasbranches.md
+│   └── murgesh.md
+│   (plus *.html work-wiring reports: Ajit/Muraghesh/Vrajesh/manas)
+│
+├── packages/
+│   ├── contracts/                       # JSON schemas + TS types
+│   │   ├── package.json
+│   │   ├── types.ts
+│   │   ├── audit_event.schema.json
+│   │   ├── extracted_field.schema.json
+│   │   ├── hold_event.schema.json
+│   │   ├── proof_card.schema.json
+│   │   ├── rule_row.schema.json
+│   │   └── run_response.schema.json
+│   ├── rulebooks/
+│   │   ├── bill_rules.json
+│   │   ├── lease_rules.json
+│   │   └── citations.md
+│   └── templates/
+│       ├── bill_complaint.txt
+│       └── lease_counter_notice.txt
+│
+└── services/
+    └── brain/                           # Node MCP server
+        ├── package.json
+        ├── tsconfig.json
+        └── src/
+            ├── index.ts
+            ├── audit/
+            │   └── audit_log.ts
+            ├── gateway/
+            │   └── billing_gateway.ts
+            ├── mcp/
+            │   ├── server.ts
+            │   └── tools/
+            │       ├── get_hold_status.ts
+            │       ├── lookup_rule.ts
+            │       ├── place_hold.ts
+            │       └── release_hold.ts
+            ├── pipeline/
+            │   ├── confidence.ts
+            │   ├── orchestrator.ts
+            │   └── steps/
+            │       ├── 01_read.ts
+            │       ├── 02_lookup.ts
+            │       ├── 03_compare.ts
+            │       ├── 04_prove.ts
+            │       ├── 05_act.ts
+            │       └── 06_draft.ts
+            └── seeds/
+                ├── control.ts
+                ├── index.ts
+                └── trap.ts
 
 ---
 
-## 2. Ownership of folders (one owner each — the DRI rule as directories)
+## 2. Data flow — the request path
+
+```
+[Camera / Seeded JSON]
+   └── apps/mobile/src/pages/CapturePage.tsx
+        └── apps/mobile/src/data/dataSource.ts   <-- VITE_RUN_MODE (mock | live)
+             ├── (mock) ─────────────────────────> apps/mobile/public/demo/trap_bill.json
+             └── (live) ─────────────────────────> apps/mobile/src/data/apiClient.ts
+                            └── POST /run
+                                 └── services/brain/src/index.ts
+                                      └── services/brain/src/pipeline/orchestrator.ts
+                                           ├── 01_read.ts (Ajit/M)   -> OCR/Vision
+                                           ├── 02_lookup.ts (M)      -> MCP lookup_rule -> packages/rulebooks
+                                           ├── 03_compare.ts (V)     -> Deterministic Math
+                                           ├── 04_prove.ts (V)       -> 3-Anchor ProofCard
+                                           ├── 05_act.ts (M)         -> MCP place_hold -> services/brain/src/gateway
+                                           └── 06_draft.ts (Ajit/M)  -> Granite / Template
+                                                └── Returns RunResponse to apps/mobile
+                                                     └── apps/mobile/src/pages/ProofPage.tsx & ActPage.tsx
+```
+
+Walking the path, bottom-up:
+
+- `CapturePage.tsx` is the single entry: it fires the Capacitor camera (live
+  device) or a seeded JSON (stage). It does not decide where data comes from.
+- `dataSource.ts` is THE mock|live switch. One env-var flip —
+  `VITE_RUN_MODE` — changes the entire source of truth. Nothing in the app
+  talks to the backend directly; everything goes through this one module.
+- **mock**: reads `public/demo/trap_bill.json` (or `control_bill.json`),
+  the deterministic stage payload — byte-identical every run, no camera, no
+  network (playbook rule #6).
+- **live**: `apiClient.ts` → `POST /run` on the brain → `index.ts` (HTTP
+  surface) → `orchestrator.ts` runs the six-step trunk in order.
+  1. `01_read.ts` (Ajit body / Murgesh wire) — OCR/vision → `extracted_fields[]`
+  2. `02_lookup.ts` (Murgesh) — MCP `lookup_rule` → `packages/rulebooks`
+  3. `03_compare.ts` (Vrajesh) — DETERMINISTIC subtraction → gaps (no LLM)
+  4. `04_prove.ts` (Vrajesh) — assemble the 3-anchor proof card
+  5. `05_act.ts` (Murgesh) — MCP `place_hold` → `gateway/billing_gateway.ts`
+  6. `06_draft.ts` (Ajit body / Murgesh wire) — Granite fills the template
+- The assembled `RunResponse` flows back to the mobile app, where
+  `ProofPage.tsx` and `ActPage.tsx` render it (cards + consent + hold chip).
+
+The two downstream readers of the switch are only `useRun.ts`/`useAudit.ts`
+via `dataSource.ts`; pages never import `apiClient.ts` or the demo JSON
+directly.
+
+---
+
+## 3. Ownership of folders (one owner each — the DRI rule as directories)
 
 | Folder | Owner | What "own" means here |
 |---|---|---|
@@ -170,7 +253,7 @@ change, and contract changes are the #1 merge risk.
 
 ---
 
-## 3. The three folders that encode the philosophy (do not "tidy" these away)
+## 4. The three folders that encode the philosophy (do not "tidy" these away)
 
 1. `packages/contracts` = "schema-first." If you ever feel like inlining a
    type in the app or the brain, stop. Add it here and import it. The moment
@@ -186,7 +269,7 @@ change, and contract changes are the #1 merge risk.
 
 ---
 
-## 4. What is NOT in the repo (and why)
+## 5. What is NOT in the repo (and why)
 
 - No real hospital/insurance/government API keys. Every external system the
   agent "acts on" is the MOCK in `services/brain/gateway`. Real integrations
@@ -201,7 +284,7 @@ change, and contract changes are the #1 merge risk.
 
 ---
 
-## 5. Build & run (the commands the team actually uses)
+## 6. Build & run (the commands the team actually uses)
 
     # install everything once
     npm install
@@ -214,7 +297,7 @@ change, and contract changes are the #1 merge risk.
     npx cap run android                    # or ios
 
     # mobile, BROWSER — this is the STAGE demo path (Vrajesh)
-    npm -w apps/mobile run serve           # ionic serve, phone width, RUN_MODE=mock
+    npm -w apps/mobile run serve           # ionic serve, phone width, VITE_RUN_MODE=mock
 
     # deterministic stage payload
     curl localhost:4000/run?seed=trap      # byte-identical every time
@@ -222,7 +305,7 @@ change, and contract changes are the #1 merge risk.
     # tests (run before every freeze tag)
     npm -w services/brain run test
 
-`RUN_MODE` in `.env` flips `dataSource.ts` between mock and live. On stage
+`VITE_RUN_MODE` in `.env` flips `dataSource.ts` between mock and live. On stage
 the browser build runs with the seeded `/run?seed=trap`, so there is no live
 camera and no live network in the 90 seconds (playbook rule #6).
 
