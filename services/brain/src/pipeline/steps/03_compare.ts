@@ -1,14 +1,14 @@
-﻿// ZERO LLM ΓÇö pure arithmetic. The verdict is arithmetic over two cited numbers. No model in this path.
-// Built with IBM Bob ΓÇö AI SDLC Partner
+// ZERO LLM — pure arithmetic. The verdict is arithmetic over two cited numbers. No model in this path.
+// Built with IBM Bob — AI SDLC Partner
 
 import type { ExtractedField, RuleRow, CompareResult } from "@pramaan/contracts";
 
 const TOLERANCE = 0;
 
 /**
- * Unit alias map ΓÇö normalise raw OCR unit strings to canonical forms before lookup.
+ * Unit alias map — normalise raw OCR unit strings to canonical forms before lookup.
  * Keys are lowercase. Add entries here when Ajit's OCR emits a new unit variant.
- * NEVER change the canonical values ("per tablet", "per strip", etc.) ΓÇö the
+ * NEVER change the canonical values ("per tablet", "per strip", etc.) — the
  * normalizeToBaseUnit function and the rulebook stubs use those strings.
  */
 const UNIT_ALIASES: Record<string, string> = {
@@ -53,13 +53,13 @@ function resolveUnit(raw: string): string {
  * Returns null if units cannot be safely compared (triggers "unverified").
  *
  * Base units:
- *   medications  ΓåÆ per tablet  (per strip ├╖ 10)
- *   radiology    ΓåÆ per scan    (identity)
- *   pathology    ΓåÆ per test    (identity)
- *   ward/nursing ΓåÆ per day     (identity)
- *   liquids      ΓåÆ per ml      (per 100ml ├╖ 100)
- *   procedures   ΓåÆ per procedure (identity)
- *   unknown      ΓåÆ null        ΓåÆ "unverified"
+ *   medications  → per tablet  (per strip ÷ 10)
+ *   radiology    → per scan    (identity)
+ *   pathology    → per test    (identity)
+ *   ward/nursing → per day     (identity)
+ *   liquids      → per ml      (per 100ml ÷ 100)
+ *   procedures   → per procedure (identity)
+ *   unknown      → null        → "unverified"
  */
 function normalizeToBaseUnit(value: number, unit: string): number | null {
   const u = resolveUnit(unit);
@@ -67,7 +67,7 @@ function normalizeToBaseUnit(value: number, unit: string): number | null {
   if (u === "per strip")  return value / 10;
   if (u === "per ml")     return value;
   if (u === "per 100ml")  return value / 100;
-  // Unknown unit ΓÇö cannot safely compare
+  // Unknown unit — cannot safely compare
   return null;
 }
 
@@ -90,16 +90,16 @@ function findRule(
 }
 
 /**
- * COMPARE step ΓÇö pure function, no side effects, no I/O, no model.
+ * COMPARE step — pure function, no side effects, no I/O, no model.
  *
  * For each extracted field:
- *   - No matching rule ΓåÆ skip silently (silence over a false alarm)
- *   - Lease rule (no official_value) ΓåÆ "unverified"
- *   - UNVERIFIED rule ΓåÆ "unverified"
- *   - null value ΓåÆ "unverified"
- *   - Unit mismatch/unknown ΓåÆ "unverified"
+ *   - No matching rule → skip silently (silence over a false alarm)
+ *   - Lease rule (no official_value) → "unverified"
+ *   - UNVERIFIED rule → "unverified"
+ *   - null value → "unverified"
+ *   - Unit mismatch/unknown → "unverified"
  *   - gap = field.value - rule.official_value
- *   - gap > TOLERANCE ΓåÆ "gap", else "ok"
+ *   - gap > TOLERANCE → "gap", else "ok"
  */
 export function compare(
   fields: ExtractedField[],
@@ -110,10 +110,10 @@ export function compare(
   for (const field of fields) {
     const rule = findRule(field.text, rules);
 
-    // No rule ΓåÆ skip silently
+    // No rule → skip silently
     if (!rule) continue;
 
-    // Lease rule has no official_value ΓÇö emit unverified with rule context
+    // Lease rule has no official_value — emit unverified with rule context
     if (rule.domain === "lease") {
       results.push({
         field,
@@ -125,7 +125,7 @@ export function compare(
       continue;
     }
 
-    // UNVERIFIED rule ΓåÆ unverified
+    // UNVERIFIED rule → unverified
     if (rule.status === "UNVERIFIED") {
       results.push({
         field,
@@ -137,7 +137,7 @@ export function compare(
       continue;
     }
 
-    // Null value ΓåÆ unverified
+    // Null value → unverified
     if (field.value === null) {
       results.push({
         field,
@@ -149,10 +149,10 @@ export function compare(
       continue;
     }
 
-    // Unit normalization ΓÇö NEVER subtract per-tablet from line-total
+    // Unit normalization — NEVER subtract per-tablet from line-total
     const normalizedFieldValue = field.unit
       ? normalizeToBaseUnit(field.value, field.unit)
-      : field.value; // no unit on field ΓÇö assume same base as rule
+      : field.value; // no unit on field — assume same base as rule
 
     const normalizedRuleValue = normalizeToBaseUnit(
       rule.official_value,

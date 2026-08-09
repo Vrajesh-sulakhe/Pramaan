@@ -1,5 +1,5 @@
-﻿// IBM: watsonx Orchestrate / Agent Lab ΓÇö 6-step agent flow
-// Built with IBM Bob ΓÇö AI SDLC Partner
+// IBM: watsonx Orchestrate / Agent Lab — 6-step agent flow
+// Built with IBM Bob — AI SDLC Partner
 
 import type { RunRequest, RunResponse, AuditEvent, ExtractedField, RuleRow, CompareResult, ProofCard, HoldEvent, Draft } from "@pramaan/contracts";
 import { auditLog } from "../audit/audit_log.js";
@@ -10,7 +10,7 @@ import { prove } from "./steps/04_prove.js";
 import { act } from "./steps/05_act.js";
 import { draft } from "./steps/06_draft.js";
 
-// Raised from 10s ΓåÆ 15s to accommodate Ajit's real OCR (large images) + Granite latency
+// Raised from 10s → 15s to accommodate Ajit's real OCR (large images) + Granite latency
 const STEP_TIMEOUT_MS = 15_000;
 
 /** Wraps a promise with a timeout. Rejects if the step takes longer than timeoutMs. */
@@ -49,7 +49,7 @@ export async function orchestrate(req: RunRequest): Promise<RunResponse> {
     gaps: [],
     cards: [],
     hold: null,
-    draft: { text: "", banner: "AI-generated ΓÇö review before sending" },
+    draft: { text: "", banner: "AI-generated — review before sending" },
   };
 
   const steps = [
@@ -116,7 +116,7 @@ export async function orchestrate(req: RunRequest): Promise<RunResponse> {
           error: e instanceof Error ? e.message : String(e),
         },
       });
-      // Partial response ΓÇö return what we have so far
+      // Partial response — return what we have so far
       break;
     }
   }

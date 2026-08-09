@@ -1,4 +1,4 @@
-﻿// Built with IBM Bob ΓÇö AI SDLC Partner
+// Built with IBM Bob — AI SDLC Partner
 
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -20,7 +20,7 @@ const NOISE_TOKENS = new Set([
 /**
  * Tokenize OCR text: split on whitespace and punctuation, lowercase, strip noise.
  * Returns a deduplicated set of meaningful tokens.
- * Example: "Paracetamol 500mg x30 Tab" ΓåÆ ["paracetamol", "500mg", "500"]
+ * Example: "Paracetamol 500mg x30 Tab" → ["paracetamol", "500mg", "500"]
  *   (numeric tokens kept because some match_terms include dose numbers)
  */
 function tokenize(text: string): Set<string> {
@@ -29,7 +29,7 @@ function tokenize(text: string): Set<string> {
   for (const t of raw) {
     if (!t || NOISE_TOKENS.has(t)) continue;
     tokens.add(t);
-    // Also add the stripped-of-trailing-digits form ("500mg" ΓåÆ "mg" already handled; keep "500")
+    // Also add the stripped-of-trailing-digits form ("500mg" → "mg" already handled; keep "500")
     const numericOnly = t.replace(/[^0-9]/g, "");
     if (numericOnly && numericOnly !== t) tokens.add(numericOnly);
   }
@@ -62,14 +62,14 @@ export function loadRulebook(domain: "bill" | "lease"): RuleRow[] {
 }
 
 /**
- * lookup_rule ΓÇö two-pass fuzzy match for real-world OCR text.
+ * lookup_rule — two-pass fuzzy match for real-world OCR text.
  *
  * Pass 1 (substring): standard case-insensitive substring match against full text.
  * Pass 2 (token):     tokenize the OCR text, match any token against any match_term token.
- *                     Handles "Paracetamol 500mg x30 Tab" ΓåÆ matches "paracetamol".
+ *                     Handles "Paracetamol 500mg x30 Tab" → matches "paracetamol".
  *
  * Returns ALL matching rules (a field can match more than one rule).
- * Returns [] on no match ΓÇö NEVER throws.
+ * Returns [] on no match — NEVER throws.
  */
 export function lookupRule(domain: "bill" | "lease", text: string): RuleRow[] {
   if (!text || text.trim().length === 0) return [];
@@ -81,12 +81,12 @@ export function lookupRule(domain: "bill" | "lease", text: string): RuleRow[] {
   const matched = new Set<RuleRow>();
 
   for (const row of rulebook) {
-    // Pass 1: substring match (original behaviour ΓÇö fast path)
+    // Pass 1: substring match (original behaviour — fast path)
     if (row.match_terms.some((term) => lower.includes(term.toLowerCase()))) {
       matched.add(row);
       continue;
     }
-    // Pass 2: token match ΓÇö any match_term token present in the OCR token set
+    // Pass 2: token match — any match_term token present in the OCR token set
     for (const term of row.match_terms) {
       const termTokens = tokenize(term);
       for (const tt of termTokens) {
