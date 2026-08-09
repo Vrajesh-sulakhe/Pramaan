@@ -21,7 +21,7 @@ const initialState: SessionState = {
   captureType: null,
   captureData: null,
   domain: 'bill',
-  isTutorialComplete: localStorage.getItem('pramaan_tutorial') === 'true',
+  isTutorialComplete: localStorage.getItem('pramaan_tutorial_completed') === 'true',
 };
 
 const SessionContext = createContext<SessionContextProps | undefined>(undefined);
@@ -38,7 +38,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const completeTutorial = () => {
-    localStorage.setItem('pramaan_tutorial', 'true');
+    localStorage.setItem('pramaan_tutorial_completed', 'true');
     setState(prev => ({ ...prev, isTutorialComplete: true }));
   };
 
