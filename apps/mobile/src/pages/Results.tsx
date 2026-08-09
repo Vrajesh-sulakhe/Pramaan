@@ -5,7 +5,7 @@ import { useSession } from '../context/SessionContext';
 import {
   ChevronLeft, TriangleAlert, Lock, Unlock, Send,
   FileSpreadsheet, Eye, ShieldCheck, Clock, FileText,
-  CheckCircle2, AlertCircle, RefreshCw, Info,
+  CheckCircle2, AlertCircle, RefreshCw, Info, Trash2, RotateCcw,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchRun, consent, fetchAudit, PramaanError } from '../data/dataSource';
@@ -100,7 +100,7 @@ export const Results: React.FC = () => {
   // V-IH-5: retrying message
   const [retryMsg, setRetryMsg]   = useState<string | null>(null);
 
-  const { state, resetSession, saveToVault, updateVaultItemHold } = useSession();
+  const { state, resetSession, saveToVault, updateVaultItemHold, deleteFromVault } = useSession();
   const history = useHistory();
 
   // V-IH-1: show friendly error toast, never raw objects or stack traces
@@ -133,23 +133,30 @@ export const Results: React.FC = () => {
       console.log('[Results] RunResponse received:', res);
 
       // Auto-sync into persistent vault
-      const gapProofs = res.proofs?.filter((p) => p.status === 'gap') ?? [];
-      const numVal = res.hold ? parseInt(res.hold.amount?.replace(/[^0-9]/g, '') ?? '0', 10) || 0 : 0;
-      saveToVault({
-        id: res.id,
-        title: state.domain === 'bill' ? 'Hospital Invoice #8921 — Radiology' : 'Residential Lease Agreement',
-        domain: state.domain,
-        captureType: state.captureType,
-        captureData: state.captureData,
-        createdAt: new Date().toISOString(),
-        disputedAmount: res.hold?.amount ?? '₹0',
-        disputedNumber: numVal,
-        holdStatus: res.hold?.status ?? 'released',
-        proofsCount: res.proofs?.length ?? 0,
-        gapCount: gapProofs.length,
-        hash: `0x${res.id.slice(-8)}a91e`,
-        summary: gapProofs.length > 0 ? gapProofs[0].summaryText : 'All amounts match statutory ceilings.',
-      });
+      try {
+        const gapProofs = res.proofs?.filter((p) => p.status === 'gap') ?? [];
+        const rawAmtStr = res.hold?.amount ? String(res.hold.amount) : '';
+        const numVal = rawAmtStr ? parseInt(rawAmtStr.replace(/[^0-9]/g, ''), 10) || 0 : 0;
+        const firstItem = res.proofs?.[0]?.itemName || res.fields?.[0]?.value;
+        const dynamicTitle = firstItem ? firstItem : (state.domain === 'bill' ? 'Medical Invoice Audit' : 'Residential Lease Agreement');
+        saveToVault({
+          id: res.id,
+          title: dynamicTitle,
+          domain: state.domain,
+          captureType: state.captureType,
+          captureData: state.captureData,
+          createdAt: new Date().toISOString(),
+          disputedAmount: res.hold?.amount ?? '₹0',
+          disputedNumber: numVal,
+          holdStatus: res.hold?.status ?? 'released',
+          proofsCount: res.proofs?.length ?? 0,
+          gapCount: gapProofs.length,
+          hash: `0x${res.id.slice(-8)}a91e`,
+          summary: gapProofs.length > 0 ? gapProofs[0].summaryText : 'All amounts match statutory ceilings.',
+        });
+      } catch (vaultErr) {
+        console.warn('[Results] saveToVault error:', vaultErr);
+      }
     }).catch(showError).finally(() => {
       setLoadingRun(false);
       setRetryMsg(null);
@@ -295,24 +302,58 @@ export const Results: React.FC = () => {
               Dashboard
             </button>
 
-            {data && (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '5px 11px',
-                borderRadius: 20,
-                background: gapCount > 0 ? 'var(--c-danger-bg)' : 'var(--c-success-bg)',
-                border: `1px solid ${gapCount > 0 ? 'var(--c-danger-border)' : 'var(--c-success-border)'}`,
-                color: gapCount > 0 ? 'var(--c-danger)' : 'var(--c-success)',
-                fontSize: 11,
-                fontWeight: 800,
-                letterSpacing: '0.4px',
-                textTransform: 'uppercase',
-              }}>
-                {gapCount > 0 ? `${gapCount} Discrepancy Found` : '100% Compliant'}
-              </span>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {data && (
+                <button
+                  onClick={() => {
+                    if (window.confirm('Clear this analysis and reset session?')) {
+                      if (data?.id) {
+                        deleteFromVault(data.id);
+                      }
+                      resetSession();
+                      history.push('/dashboard');
+                    }
+                  }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: 12,
+                    padding: '6px 12px',
+                    color: 'var(--c-text-2)',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Clear this analysis"
+                >
+                  <Trash2 size={13} color="var(--c-text-3)" />
+                  Clear
+                </button>
+              )}
+
+              {data && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '5px 11px',
+                  borderRadius: 20,
+                  background: gapCount > 0 ? 'var(--c-danger-bg)' : 'var(--c-success-bg)',
+                  border: `1px solid ${gapCount > 0 ? 'var(--c-danger-border)' : 'var(--c-success-border)'}`,
+                  color: gapCount > 0 ? 'var(--c-danger)' : 'var(--c-success)',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  letterSpacing: '0.4px',
+                  textTransform: 'uppercase',
+                }}>
+                  {gapCount > 0 ? `${gapCount} Discrepancy Found` : '100% Compliant'}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* V-IH-3: Full-screen run spinner */}
@@ -333,12 +374,12 @@ export const Results: React.FC = () => {
             </div>
           )}
 
-          {/* V-IH-2: Error state after /run fails (no data, no loading) */}
-          {!loadingRun && !data && error && (
+          {/* Fallback state if no data after analysis */}
+          {!loadingRun && !data && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '60px 24px', textAlign: 'center' }}>
               <AlertCircle size={40} color="var(--c-danger)" />
-              <p style={{ fontSize: 15, fontWeight: 800, color: '#ffffff', margin: 0 }}>Analysis failed</p>
-              <p style={{ fontSize: 13, color: 'var(--c-text-2)', margin: 0 }}>{error}</p>
+              <p style={{ fontSize: 16, fontWeight: 800, color: '#ffffff', margin: 0 }}>Analysis unavailable</p>
+              <p style={{ fontSize: 13, color: 'var(--c-text-2)', margin: 0 }}>{error || 'Could not complete the document audit. Please retry your scan.'}</p>
               <button onClick={back} className="btn-primary" style={{ marginTop: 8, maxWidth: 220 }}>
                 <ChevronLeft size={16} /> Back to Dashboard
               </button>
@@ -775,6 +816,34 @@ export const Results: React.FC = () => {
                   {loadingLetter ? 'Sending…' : 'Send Letter'}
                 </motion.button>
               )}
+
+              {/* Clear & Reset Option */}
+              <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 6 }}>
+                <button
+                  onClick={() => {
+                    if (data?.id) {
+                      deleteFromVault(data.id);
+                    }
+                    resetSession();
+                    history.push('/capture');
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--c-text-3)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 12px',
+                  }}
+                >
+                  <RotateCcw size={13} />
+                  Clear & Scan Another Document
+                </button>
+              </div>
             </div>
           )}
         </div>

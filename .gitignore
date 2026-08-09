@@ -1,9 +1,13 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
+**/node_modules/
+package-lock.json.bak
 
 # Build output
 dist/
 build/
+.vite/
+**/.vite/
 
 # Environment secrets
 .env
@@ -20,6 +24,9 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+# OCR Assets
+*.traineddata
 
 # Test output
 coverage/

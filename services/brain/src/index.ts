@@ -17,15 +17,23 @@ import {
 import { CONTROL_SEED_FIELDS, FIXED_CONTROL_RUN_ID } from "./seeds/control.js";
 
 const app = express();
+
+// ── CORS headers for local and web client connectivity ───────────────────────
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (_req.method === "OPTIONS") {
+    res.sendStatus(200);
+    return;
+  }
+  next();
+});
+
 // Raise body limit to 10 MB to accommodate base64-encoded bill images (typ. 1–3 MB).
-// Without this, large images return a cryptic 413 from Express before our validation.
 app.use(express.json({ limit: "10mb" }));
 
-// ── 413 handler — fires when Vrajesh's camera image exceeds the body limit ───
-// express.json() throws an error with status 413 before reaching any route.
-// Without this handler, Express returns a cryptic "PayloadTooLargeError" HTML body.
-// This converts it to our standard structured error so the mobile UI can show a
-// helpful message ("Image too large — please use a file under 10 MB").
+// ── 413 handler — fires when camera image exceeds the body limit ────────────
 app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
   if (
     typeof err === "object" &&
@@ -41,6 +49,8 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
 
 const PORT = parseInt(process.env["BRAIN_PORT"] ?? "3000", 10);
 
+const VALID_DOMAINS = new Set(["bill", "lease", "gig_payslip", "insurance", "medicine", "challan"]);
+
 // ── GET /health ──────────────────────────────────────────────────────────────
 app.get("/health", (_req: Request, res: Response) => {
   res.json({ ok: true });
@@ -49,12 +59,18 @@ app.get("/health", (_req: Request, res: Response) => {
 // ── POST /run — live pipeline ────────────────────────────────────────────────
 app.post("/run", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { image, domain } = req.body as { image?: unknown; domain?: unknown };
-    if (typeof image !== "string" || (domain !== "bill" && domain !== "lease")) {
-      res.status(400).json({ error: "Invalid request. Required: { image: string, domain: 'bill' | 'lease' }" });
+    const { image, text, domain } = req.body as { image?: unknown; text?: unknown; domain?: unknown };
+    const domainStr = typeof domain === "string" ? domain : "bill";
+    if (!VALID_DOMAINS.has(domainStr)) {
+      res.status(400).json({ error: `Invalid request. Domain must be one of: ${[...VALID_DOMAINS].join(", ")}` });
       return;
     }
-    const result = await orchestrate({ image, domain });
+    const inputPayload = typeof image === "string" ? image : (typeof text === "string" ? text : "");
+    if (!inputPayload) {
+      res.status(400).json({ error: "Invalid request. Required: image or text string" });
+      return;
+    }
+    const result = await orchestrate({ image: inputPayload, domain: domainStr as any });
     res.json(result);
   } catch (e) {
     next(e);
@@ -67,10 +83,10 @@ app.post("/run", async (req: Request, res: Response, next: NextFunction) => {
 app.get("/run", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const seed = req.query["seed"] as string | undefined;
-    const domain = (req.query["domain"] as string | undefined) ?? "bill";
+    const domain = ((req.query["domain"] as string | undefined) ?? "bill");
 
-    if (domain !== "bill" && domain !== "lease") {
-      res.status(400).json({ error: "domain must be 'bill' or 'lease'" });
+    if (!VALID_DOMAINS.has(domain)) {
+      res.status(400).json({ error: `Domain must be one of: ${[...VALID_DOMAINS].join(", ")}` });
       return;
     }
 

@@ -1,23 +1,35 @@
-To: Billing Department, {{hospital_name}}
-From: {{user_name}}
-Date: {{current_date}}
-Subject: Formal Dispute Regarding Overcharge on Invoice #{{invoice_id}}
+TO: The Billing Manager / Medical Superintendent
+{{hospital_name}}
+{{hospital_address}}
 
-Dear Billing Department,
+FROM: {{patient_name}}
+DATE: {{current_date}}
 
-I am writing to formally dispute a charge on Invoice #{{invoice_id}} issued on {{bill_date}}. Upon auditing this bill against official government price caps, the following overcharge was identified:
+SUBJECT: FORMAL DISPUTE OF INVOICE NO. {{invoice_number}} DATED {{bill_date}}
 
-Disputed Item: {{item_category}}
-Billed Amount: ₹{{your_value}}
-Official Government Cap: ₹{{official_value}}
-Total Disputed Overcharge: ₹{{gap_amount}}
+Dear Sir/Madam,
 
-Legal Source: {{official_source}}
-Official Rule: {{rule_says_plain}}
+I am writing to formally dispute specific line items in the above-referenced invoice. Upon review using Pramaan's evidence engine, the following charges have been identified as non-compliant with official government rate cards and pricing regulations:
 
-As per government mandates, charging above the prescribed ceiling price constitutes a direct violation. A provisional hold of ₹{{gap_amount}} has been staged on this transaction.
+{{#each proof_cards}}
+-----------------------------------------
+ITEM: {{item}}
+YOUR CHARGE: ₹{{your_value}} {{unit}}
+OFFICIAL RATE: ₹{{official_value}} {{unit}} (Source: {{rule_anchor.ref}})
+OVERCHARGE GAP: ₹{{gap}}
+FINDING: {{rule_says_plain}}
+{{/each}}
 
-I request an immediate revision of Invoice #{{invoice_id}} to reflect the official ceiling price of ₹{{official_value}}. Please issue an updated itemized bill at your earliest convenience.
+TOTAL DISPUTED AMOUNT: ₹{{total_gap}}
+
+REQUEST FOR RESOLUTION:
+1. I request an immediate revised invoice reflecting the official rates cited above.
+2. A provisional hold has been placed on the disputed amount of ₹{{total_gap}} pending your response.
+3. If this is not resolved within 7 days, I will be compelled to escalate this matter to the District Registering Authority under the Clinical Establishments Act, 2010 (Section 41) and the Consumer Forum.
+
+Please confirm the rectification in writing.
 
 Sincerely,
-{{user_name}}
+
+{{patient_name}}
+[Sent via Pramaan Evidence Engine · AI-Generated Draft · Review Before Sending]

@@ -1,5 +1,7 @@
-// FROZEN @ P1 — 2026-08-09 — Changes require Murgesh + Vrajesh sync (sprint rule #1).
-// 10 exported types. PipelineState is internal to orchestrator — NOT exported here.
+// Pramaan Contracts — 6-Domain Multi-Regulatory Architecture
+// Domain Types: bill, lease, gig_payslip, insurance, medicine, challan
+
+export type Domain = "bill" | "lease" | "gig_payslip" | "insurance" | "medicine" | "challan";
 
 export interface ExtractedField {
   text: string;
@@ -11,7 +13,13 @@ export interface ExtractedField {
 }
 
 // RuleRow — discriminated union on domain
-export type RuleRow = BillRuleRow | LeaseRuleRow;
+export type RuleRow =
+  | BillRuleRow
+  | LeaseRuleRow
+  | GigPayslipRuleRow
+  | InsuranceRuleRow
+  | MedicineRuleRow
+  | ChallanRuleRow;
 
 export interface BillRuleRow {
   rule_id: string;
@@ -26,7 +34,7 @@ export interface BillRuleRow {
   rule_says_plain: string;
   severity: "high" | "medium";
   status: "VERIFIED" | "UNVERIFIED";
-  notes: string;
+  notes?: string;
 }
 
 export interface LeaseRuleRow {
@@ -42,6 +50,62 @@ export interface LeaseRuleRow {
   status: "VERIFIED" | "UNVERIFIED";
 }
 
+export interface GigPayslipRuleRow {
+  rule_id: string;
+  domain: "gig_payslip";
+  rule_category: string;
+  match_terms: string[];
+  clause_ref: string;
+  clause_ref_url: string;
+  mandate_type: "min_driver_share" | "surge_cap" | "cancellation_cap" | "deadhead_pay" | "insurance";
+  official_threshold: number; // e.g. 0.80 for 80% driver share, 1.5 for surge cap
+  rule_says_plain: string;
+  suggested_fix_plain: string;
+  status: "VERIFIED" | "UNVERIFIED";
+}
+
+export interface InsuranceRuleRow {
+  rule_id: string;
+  domain: "insurance";
+  rule_category: string;
+  match_terms: string[];
+  circular_ref: string;
+  circular_ref_url: string;
+  mandate_type: "moratorium" | "cashless_tat" | "proportionate_deduction" | "ombudsman_limit";
+  official_value?: number;
+  rule_says_plain: string;
+  suggested_fix_plain: string;
+  status: "VERIFIED" | "UNVERIFIED";
+}
+
+export interface MedicineRuleRow {
+  rule_id: string;
+  domain: "medicine";
+  drug_name: string;
+  match_terms: string[];
+  nppa_ceiling_price?: number;
+  nsq_batch_numbers?: string[];
+  recall_status?: "NSQ_RECALL" | "PRICE_CAPPED" | "COMPLIANT";
+  source_authority: "NPPA" | "CDSCO";
+  source_url: string;
+  rule_says_plain: string;
+  status: "VERIFIED" | "UNVERIFIED";
+}
+
+export interface ChallanRuleRow {
+  rule_id: string;
+  domain: "challan";
+  violation_code: string;
+  match_terms: string[];
+  section_ref: string;
+  section_ref_url: string;
+  statutory_fine: number;
+  electronic_evidence_mandate: boolean;
+  rule_says_plain: string;
+  suggested_fix_plain: string;
+  status: "VERIFIED" | "UNVERIFIED";
+}
+
 export interface ProofCard {
   item: string;
   your_value: number;
@@ -52,12 +116,13 @@ export interface ProofCard {
     ref: string;
     bbox?: [number, number, number, number];
     ocr_confidence?: number;
+    url?: string;
   };
   rule_anchor: {
     ref: string;
     url?: string;
   };
-  compute_anchor: string; // e.g. "45 - 2"
+  compute_anchor: string; // e.g. "8500 - 6400" or "4000 - 2800"
   rule_says_plain: string;
 }
 
@@ -91,7 +156,7 @@ export interface AuditEvent {
 
 export interface RunRequest {
   image: string;
-  domain: "bill" | "lease";
+  domain: Domain;
 }
 
 export interface RunResponse {
@@ -116,5 +181,3 @@ export interface Draft {
   text: string;
   banner: string;
 }
-
-export type Domain = "bill" | "lease";

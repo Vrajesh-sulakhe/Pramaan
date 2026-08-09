@@ -1,4 +1,5 @@
 // Built with IBM Bob — AI SDLC Partner
+// PROVE Step — 6-Domain Multi-Regulatory Proof Card Builder
 
 import type { CompareResult, ExtractedField, RuleRow, ProofCard } from "@pramaan/contracts";
 
@@ -39,7 +40,7 @@ export function prove(
         gap: cr.gap,
         status: "unverified",
         source_anchor: {
-          ref: `Bill line: "${cr.field.text}"`,
+          ref: `Document line: "${cr.field.text}"`,
           bbox: cr.field.bbox,
           ocr_confidence: cr.field.confidence,
         },
@@ -50,15 +51,28 @@ export function prove(
       continue;
     }
 
-    const ruleAnchorRef =
-      matchedRule.domain === "bill"
-        ? matchedRule.official_source
-        : matchedRule.law_ref;
+    let ruleAnchorRef = "Official Regulatory Schedule";
+    let ruleAnchorUrl: string | undefined;
 
-    const ruleAnchorUrl =
-      matchedRule.domain === "bill"
-        ? matchedRule.official_source_url
-        : matchedRule.law_ref_url;
+    if (matchedRule.domain === "bill") {
+      ruleAnchorRef = matchedRule.official_source;
+      ruleAnchorUrl = matchedRule.official_source_url;
+    } else if (matchedRule.domain === "lease") {
+      ruleAnchorRef = matchedRule.law_ref;
+      ruleAnchorUrl = matchedRule.law_ref_url;
+    } else if (matchedRule.domain === "gig_payslip") {
+      ruleAnchorRef = matchedRule.clause_ref;
+      ruleAnchorUrl = matchedRule.clause_ref_url;
+    } else if (matchedRule.domain === "insurance") {
+      ruleAnchorRef = matchedRule.circular_ref;
+      ruleAnchorUrl = matchedRule.circular_ref_url;
+    } else if (matchedRule.domain === "medicine") {
+      ruleAnchorRef = `${matchedRule.source_authority} Notification`;
+      ruleAnchorUrl = matchedRule.source_url;
+    } else if (matchedRule.domain === "challan") {
+      ruleAnchorRef = matchedRule.section_ref;
+      ruleAnchorUrl = matchedRule.section_ref_url;
+    }
 
     cards.push({
       item: cr.field.text,
@@ -67,7 +81,7 @@ export function prove(
       gap: cr.gap,
       status: cr.status,
       source_anchor: {
-        ref: `Bill line: "${cr.field.text}"`,
+        ref: `Document line: "${cr.field.text}"`,
         bbox: cr.field.bbox,
         ocr_confidence: cr.field.confidence,
       },

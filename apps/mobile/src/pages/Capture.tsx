@@ -20,17 +20,17 @@ export const Capture: React.FC = () => {
   const [text, setText] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const sampleBills = {
+  const sampleBills: Record<string, string> = {
     bill: `HOSPITAL INVOICE #2024-8831
 Patient: Rahul Sharma
 Date: 14/08/2024
 Department: Radiology & Diagnostic
 
-1. Brain MRI with Contrast (3.0 Tesla): ₹45,000 (CGHS Cap: ₹18,000)
-2. Specialist Consultation Fee: ₹500
-3. Facility & Administration: ₹1,200
+1. Brain MRI with Contrast (3.0 Tesla): ₹8,500 (CGHS Cap: ₹6,400)
+2. Paracetamol 500mg Tablets x 10: ₹45 (DPCO Cap: ₹2)
+3. Complete Blood Count (CBC): ₹150
 
-Total Amount Billed: ₹46,700`,
+Total Amount Billed: ₹8,695`,
     lease: `RESIDENTIAL LEASE AGREEMENT
 Landlord: Green Real Estate
 Tenant: Priya Mehta
@@ -38,7 +38,37 @@ Property: Apt 4B, Koramangala 5th Block
 
 1. Monthly Rent: ₹35,000 / month
 2. Security Deposit: ₹3,50,000 (10 Months Demanded - Legal Ceiling: 2 Months)
-3. Annual Escalation: 15% automatic yearly increase`
+3. Annual Escalation: 15% automatic yearly increase`,
+    gig_payslip: `AGGREGATOR WEEKLY DRIVER SETTLEMENT
+Driver: Suresh Kumar
+Platform: QuickRide Aggregator
+Week: 01 Aug - 07 Aug 2025
+
+1. Gross Customer Fare Billed: ₹5,000
+2. Platform Commission Deducted: ₹2,200 (44%)
+3. Driver Net Payout: ₹2,800 (56%)
+(Note: MoRTH 2025 Clause 17 mandates minimum 80% driver payout: ₹4,000)`,
+    insurance: `TPA HEALTH CLAIM SETTLEMENT SUMMARY
+Policyholder: Anita Roy
+Insurer: Star Health Assurance
+Hospital: City Multispeciality
+
+1. Total Incurred Hospital Bill: ₹1,20,000
+2. Approved Amount Settled: ₹85,000
+3. Disallowed Room Rent Proportionate Deduction: ₹35,000 (Violates IRDAI 2024)`,
+    medicine: `PHARMACY CASH MEMO & TAX INVOICE
+Store: MedPlus Chemist & Druggist
+Date: 10/08/2025
+
+1. Paracetamol 650mg Strip of 10: ₹45 (NPPA DPCO Price Ceiling: ₹22)
+2. Azithromycin Tablets IP 500mg (Batch AYC-2407): ₹185 (Flagged under CDSCO NSQ Safety Recall)`,
+    challan: `TRAFFIC E-CHALLAN VIOLATION NOTICE
+Notice No: DL-8849-2025-CH
+Vehicle No: DL-03-CC-9120
+
+1. Alleged Offense: Section 183 MV Act (Speed Violation: 74 km/h in 60 km/h zone)
+2. Fine Demanded: ₹2,000
+(Note: Lacks mandatory Section 136A electronic speed camera calibration proof)`,
   };
 
   const handleApplySample = () => {

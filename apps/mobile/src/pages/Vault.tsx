@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { IonPage, IonContent } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
-import { useSession, VaultItem } from '../context/SessionContext';
+import { useSession, VaultItem, Domain } from '../context/SessionContext';
 import { 
   ShieldCheck, 
   Search, 
@@ -19,11 +19,22 @@ import {
   FileCheck, 
   Plus, 
   Filter,
-  AlertCircle
+  AlertCircle,
+  Car,
+  Pill,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-type FilterTab = 'all' | 'holds' | 'bill' | 'lease';
+type FilterTab = 'all' | 'holds' | Domain;
+
+const DOMAIN_LABELS: Record<Domain, { label: string; icon: React.ElementType }> = {
+  bill: { label: 'Medical Bill', icon: Hospital },
+  lease: { label: 'Rental Lease', icon: Building2 },
+  gig_payslip: { label: 'Gig Payslip', icon: Car },
+  insurance: { label: 'Insurance Claim', icon: ShieldCheck },
+  medicine: { label: 'Medicine & NSQ', icon: Pill },
+  challan: { label: 'Traffic Challan', icon: Scale },
+};
 
 export const Vault: React.FC = () => {
   const history = useHistory();
@@ -33,7 +44,7 @@ export const Vault: React.FC = () => {
 
   // Dynamic calculations
   const totalProtectedFunds = useMemo(() => {
-    return state.vault.reduce((acc, item) => acc + item.disputedNumber, 0);
+    return state.vault.reduce((acc, item) => acc + (item.disputedNumber || 0), 0);
   }, [state.vault]);
 
   const activeHoldsCount = useMemo(() => {
@@ -41,7 +52,7 @@ export const Vault: React.FC = () => {
   }, [state.vault]);
 
   const totalProofsCount = useMemo(() => {
-    return state.vault.reduce((acc, item) => acc + item.proofsCount, 0);
+    return state.vault.reduce((acc, item) => acc + (item.proofsCount || 0), 0);
   }, [state.vault]);
 
   // Filtered list
@@ -49,8 +60,7 @@ export const Vault: React.FC = () => {
     return state.vault.filter(item => {
       // Filter by tab
       if (activeFilter === 'holds' && item.holdStatus !== 'placed') return false;
-      if (activeFilter === 'bill' && item.domain !== 'bill') return false;
-      if (activeFilter === 'lease' && item.domain !== 'lease') return false;
+      if (activeFilter !== 'all' && activeFilter !== 'holds' && item.domain !== activeFilter) return false;
 
       // Filter by search query
       if (searchQuery.trim()) {
@@ -100,13 +110,13 @@ export const Vault: React.FC = () => {
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--c-success)', boxShadow: '0 0 8px rgba(52, 211, 153, 0.6)' }} />
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--c-text-1)', boxShadow: '0 0 8px rgba(255, 255, 255, 0.6)' }} />
                 <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--c-text-3)' }}>
-                  EVIDENCE VAULT
+                  SECURE VAULT
                 </span>
               </div>
-              <h1 style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.5px', color: '#ffffff', margin: 0, lineHeight: 1.1 }}>
-                Protected Records
+              <h1 style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--c-text-1)', margin: 0, lineHeight: 1.1 }}>
+                Evidence Registry
               </h1>
             </div>
 
@@ -114,21 +124,26 @@ export const Vault: React.FC = () => {
               {state.vault.length > 0 && (
                 <button
                   onClick={() => {
-                    if (window.confirm('Are you sure you want to clear all evidence from your vault?')) {
+                    if (window.confirm('Clear all evidence records and reset protected capital?')) {
                       clearVault();
                     }
                   }}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
                     borderRadius: 10,
                     padding: '6px 10px',
                     color: 'var(--c-text-3)',
                     fontSize: 11,
                     fontWeight: 700,
                     cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
                   }}
+                  title="Clear all stored evidence"
                 >
+                  <Trash2 size={12} />
                   Clear
                 </button>
               )}
@@ -138,65 +153,78 @@ export const Vault: React.FC = () => {
                 style={{
                   background: '#ffffff',
                   border: 'none',
-                  borderRadius: 10,
-                  padding: '6px 12px',
+                  borderRadius: 12,
+                  padding: '8px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
                   color: '#050508',
                   fontSize: 12,
                   fontWeight: 800,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
                   cursor: 'pointer',
-                  boxShadow: '0 2px 10px rgba(255, 255, 255, 0.2)',
+                  boxShadow: '0 4px 14px rgba(255, 255, 255, 0.25)',
                 }}
               >
-                <Plus size={14} strokeWidth={3} />
-                New Scan
+                <Plus size={16} strokeWidth={2.4} />
+                New Audit
               </button>
             </div>
           </div>
 
-          {/* ──── Dynamic Aggregate Metrics Banner ──── */}
+          {/* ──── Capital Protection Card ──── */}
           <div style={{ padding: '16px 20px 0' }}>
             <div style={{
-              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%)',
+              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%)',
               border: '1px solid rgba(255, 255, 255, 0.12)',
-              boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.14)',
-              backdropFilter: 'blur(20px)',
+              boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+              backdropFilter: 'blur(24px)',
               borderRadius: 20,
               padding: 20,
+              position: 'relative',
+              overflow: 'hidden',
             }}>
+              <div style={{
+                position: 'absolute',
+                top: 0, left: '20%', right: '20%', height: 1,
+                background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent)',
+              }} />
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.8px', textTransform: 'uppercase', color: 'var(--c-text-3)' }}>
-                  Total Protected Capital
-                </span>
-                <span style={{
-                  padding: '4px 9px',
-                  borderRadius: 12,
-                  background: 'rgba(52, 211, 153, 0.12)',
-                  border: '1px solid rgba(52, 211, 153, 0.25)',
-                  color: 'var(--c-success)',
-                  fontSize: 11,
-                  fontWeight: 800,
-                }}>
-                  {state.vault.length} Sealed Documents
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <ShieldCheck size={16} color="var(--c-success)" />
+                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.8px', textTransform: 'uppercase', color: 'var(--c-success)' }}>
+                    6-Domain Protection
+                  </span>
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--c-text-3)', fontFamily: 'IBM Plex Mono, monospace' }}>
+                  {state.vault.length} Stored Cases
                 </span>
               </div>
 
-              <div style={{ fontSize: 32, fontWeight: 900, color: '#ffffff', letterSpacing: '-0.8px', fontFamily: 'IBM Plex Mono, monospace', lineHeight: 1.1, marginBottom: 14 }}>
+              <div style={{ fontSize: 32, fontWeight: 900, color: '#ffffff', letterSpacing: '-0.8px', fontFamily: 'IBM Plex Mono, monospace', lineHeight: 1.1, marginBottom: 8 }}>
                 ₹{totalProtectedFunds.toLocaleString('en-IN')}
               </div>
+              <p style={{ fontSize: 13, color: 'var(--c-text-2)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+                Total disputed capital protected across medical bills, leases, gig payslips, insurance claims, medicines, and traffic challans.
+              </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingTop: 12, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                <div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 10,
+                paddingTop: 14,
+                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              }}>
+                <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px 12px', borderRadius: 12 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--c-text-3)', marginBottom: 2 }}>
                     Active 72h Holds
                   </div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: '#ffffff', fontFamily: 'IBM Plex Mono, monospace' }}>
-                    {activeHoldsCount} Active Holds
+                  <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--c-success)', fontFamily: 'IBM Plex Mono, monospace' }}>
+                    {activeHoldsCount} Locked
                   </div>
                 </div>
-                <div>
+
+                <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px 12px', borderRadius: 12 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--c-text-3)', marginBottom: 2 }}>
                     Statutory Clauses
                   </div>
@@ -225,7 +253,7 @@ export const Vault: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search cases, hospital, landlord, or hash..."
+                placeholder="Search cases, statutory rules, or proof hash..."
                 style={{
                   flex: 1,
                   background: 'transparent',
@@ -248,19 +276,23 @@ export const Vault: React.FC = () => {
           </div>
 
           {/* ──── Filter Pills ──── */}
-          <div style={{ padding: '12px 20px 0', overflowX: 'auto' }}>
+          <div style={{ padding: '12px 20px 0', overflowX: 'auto', scrollbarWidth: 'none' }}>
             <div style={{ display: 'flex', gap: 6, minWidth: 'max-content' }}>
               {[
-                { id: 'all', label: `All Evidence (${state.vault.length})` },
-                { id: 'holds', label: `Active Holds (${activeHoldsCount})` },
-                { id: 'bill', label: 'Medical Bills' },
-                { id: 'lease', label: 'Rental Leases' },
+                { id: 'all' as const, label: `All Evidence (${state.vault.length})` },
+                { id: 'holds' as const, label: `Active Holds (${activeHoldsCount})` },
+                { id: 'bill' as const, label: 'Medical' },
+                { id: 'lease' as const, label: 'Leases' },
+                { id: 'gig_payslip' as const, label: 'Gig Payslip' },
+                { id: 'insurance' as const, label: 'Insurance' },
+                { id: 'medicine' as const, label: 'Medicines' },
+                { id: 'challan' as const, label: 'Challans' },
               ].map(tab => {
                 const active = activeFilter === tab.id;
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveFilter(tab.id as FilterTab)}
+                    onClick={() => setActiveFilter(tab.id)}
                     style={{
                       padding: '6px 12px',
                       borderRadius: 10,
@@ -310,7 +342,7 @@ export const Vault: React.FC = () => {
                     No Evidence Records Found
                   </h3>
                   <p style={{ fontSize: 13, color: 'var(--c-text-3)', margin: 0 }}>
-                    {searchQuery ? 'Try adjusting your search query' : 'Scan a medical bill or rental lease to seal your first proof.'}
+                    {searchQuery ? 'Try adjusting your search query' : 'Scan any document from the 6 statutory domains to seal your first proof.'}
                   </p>
                 </div>
                 {!searchQuery && (
@@ -326,205 +358,136 @@ export const Vault: React.FC = () => {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <AnimatePresence>
-                  {filteredItems.map((item, idx) => (
-                    <motion.div
-                      key={item.id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ delay: idx * 0.05 }}
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.035)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                        boxShadow: '0 16px 36px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-                        backdropFilter: 'blur(20px)',
-                        borderRadius: 18,
-                        padding: 16,
-                        position: 'relative',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {/* Top status rail */}
-                      <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        height: 3,
-                        background: item.holdStatus === 'placed' ? 'var(--c-success)' : 'var(--c-warn)',
-                      }} />
+                  {filteredItems.map((item, idx) => {
+                    const DomainIcon = DOMAIN_LABELS[item.domain]?.icon || Hospital;
+                    const domainTitle = DOMAIN_LABELS[item.domain]?.label || 'Document Audit';
 
-                      {/* Header Row */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          {item.domain === 'bill' ? <Hospital size={14} color="var(--c-text-2)" /> : <Building2 size={14} color="var(--c-text-2)" />}
-                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-text-3)', textTransform: 'uppercase' }}>
-                            {item.domain === 'bill' ? 'Medical Bill' : 'Rental Lease'} • {new Date(item.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                    return (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ delay: idx * 0.05 }}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.035)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          boxShadow: '0 16px 36px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                          backdropFilter: 'blur(20px)',
+                          borderRadius: 18,
+                          padding: 16,
+                          position: 'relative',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {/* Top status rail */}
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: 3,
+                          background: item.holdStatus === 'placed' ? 'var(--c-success)' : 'var(--c-warn)',
+                        }} />
+
+                        {/* Header Row */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <DomainIcon size={14} color="var(--c-text-2)" />
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-text-3)', textTransform: 'uppercase' }}>
+                              {domainTitle} • {new Date(item.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </span>
+                          </div>
+
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: 8,
+                            background: item.holdStatus === 'placed' ? 'rgba(52, 211, 153, 0.12)' : 'rgba(251, 191, 36, 0.12)',
+                            border: `1px solid ${item.holdStatus === 'placed' ? 'rgba(52, 211, 153, 0.3)' : 'rgba(251, 191, 36, 0.3)'}`,
+                            color: item.holdStatus === 'placed' ? 'var(--c-success)' : 'var(--c-warn)',
+                            fontSize: 10,
+                            fontWeight: 800,
+                            letterSpacing: '0.4px',
+                            textTransform: 'uppercase',
+                          }}>
+                            {item.holdStatus === 'placed' ? '72H FROZEN' : 'DISPUTED'}
                           </span>
                         </div>
 
-                        <span style={{
-                          padding: '3px 8px',
-                          borderRadius: 8,
-                          background: item.holdStatus === 'placed' ? 'rgba(52, 211, 153, 0.12)' : 'rgba(251, 191, 36, 0.12)',
-                          border: `1px solid ${item.holdStatus === 'placed' ? 'rgba(52, 211, 153, 0.3)' : 'rgba(251, 191, 36, 0.3)'}`,
-                          color: item.holdStatus === 'placed' ? 'var(--c-success)' : 'var(--c-warn)',
-                          fontSize: 10,
-                          fontWeight: 800,
-                          letterSpacing: '0.4px',
-                          textTransform: 'uppercase',
+                        {/* Title & Amount */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                          <h3 style={{ fontSize: 15, fontWeight: 800, color: '#ffffff', margin: 0, lineHeight: 1.3 }}>
+                            {item.title}
+                          </h3>
+                          <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--c-danger)', fontFamily: 'IBM Plex Mono, monospace', flexShrink: 0 }}>
+                            {item.disputedAmount}
+                          </div>
+                        </div>
+
+                        {/* Summary */}
+                        <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--c-text-2)', margin: '0 0 12px 0' }}>
+                          {item.summary}
+                        </p>
+
+                        {/* Footer Actions */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          paddingTop: 10,
+                          borderTop: '1px solid rgba(255, 255, 255, 0.06)',
                         }}>
-                          {item.holdStatus === 'placed' ? '72H FROZEN' : 'OVERCHARGE'}
-                        </span>
-                      </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--c-text-3)' }}>
+                              HASH: {item.hash}
+                            </span>
+                          </div>
 
-                      {/* Title & Amount */}
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
-                        <h3 style={{ fontSize: 15, fontWeight: 800, color: '#ffffff', margin: 0, lineHeight: 1.3 }}>
-                          {item.title}
-                        </h3>
-                        <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--c-danger)', fontFamily: 'IBM Plex Mono, monospace', flexShrink: 0 }}>
-                          {item.disputedAmount}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteFromVault(item.id);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                padding: 4,
+                                color: 'var(--c-text-3)',
+                                cursor: 'pointer',
+                              }}
+                              title="Delete evidence"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+
+                            <button
+                              onClick={() => handleOpenCase(item)}
+                              style={{
+                                background: 'rgba(255, 255, 255, 0.08)',
+                                border: '1px solid rgba(255, 255, 255, 0.12)',
+                                borderRadius: 8,
+                                padding: '5px 10px',
+                                color: '#ffffff',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Inspect Proofs
+                              <ChevronRight size={14} />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-
-                      {/* Summary */}
-                      <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--c-text-2)', margin: '0 0 12px 0' }}>
-                        {item.summary}
-                      </p>
-
-                      {/* Footer Actions */}
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        paddingTop: 10,
-                        borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--c-text-3)' }}>
-                            HASH: {item.hash}
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteFromVault(item.id);
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              padding: 4,
-                              color: 'var(--c-text-3)',
-                              cursor: 'pointer',
-                            }}
-                            title="Delete evidence"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-
-                          <button
-                            onClick={() => handleOpenCase(item)}
-                            style={{
-                              background: 'rgba(255, 255, 255, 0.08)',
-                              border: '1px solid rgba(255, 255, 255, 0.12)',
-                              borderRadius: 8,
-                              padding: '5px 10px',
-                              color: '#ffffff',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Inspect Proofs
-                            <ChevronRight size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    );
+                  })}
                 </AnimatePresence>
               </div>
             )}
-          </div>
-
-          {/* ──── Floating Smoked Glass Bottom Navigation ──── */}
-          <div style={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            margin: '0 auto',
-            maxWidth: 440,
-            padding: '10px 24px',
-            paddingBottom: 'calc(var(--sab) + 8px)',
-            background: 'rgba(5, 5, 8, 0.88)',
-            borderTop: '1px solid rgba(255, 255, 255, 0.10)',
-            backdropFilter: 'blur(24px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-around',
-            zIndex: 100,
-          }}>
-            <button
-              onClick={() => history.push('/dashboard')}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4,
-                color: 'var(--c-text-3)',
-                cursor: 'pointer',
-                background: 'none',
-                border: 'none',
-              }}
-            >
-              <Layers size={20} />
-              <span style={{ fontSize: 10, fontWeight: 700 }}>Engine</span>
-            </button>
-
-            <button
-              onClick={() => history.push('/capture')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                background: '#ffffff',
-                color: '#050508',
-                cursor: 'pointer',
-                border: 'none',
-                boxShadow: '0 4px 18px rgba(255, 255, 255, 0.3)',
-                marginTop: -16,
-              }}
-            >
-              <ScanLine size={22} color="#050508" strokeWidth={2.4} />
-            </button>
-
-            <button
-              onClick={() => history.push('/vault')}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4,
-                color: '#ffffff',
-                cursor: 'pointer',
-                background: 'none',
-                border: 'none',
-              }}
-            >
-              <Scale size={20} />
-              <span style={{ fontSize: 10, fontWeight: 800 }}>Vault</span>
-            </button>
           </div>
 
         </div>
