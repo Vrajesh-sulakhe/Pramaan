@@ -111,6 +111,7 @@ Every transition writes an `AuditEvent`. The audit trail is append-only.
 | `GET` | `/run?seed=control` | Clean bill demo. Proves engine does not flag correct bills. |
 | `POST` | `/consent` | Human tap. Body: `{ run_id, hold_id, action }`. |
 | `GET` | `/health` | Liveness check. Returns `{ ok: true }`. |
+| `GET` | `/audit/:run_id` | Governance trail export. Returns ordered `AuditEvent[]` for the given `run_id`. |
 
 ---
 
@@ -130,6 +131,19 @@ Every transition writes an `AuditEvent`. The audit trail is append-only.
 > The verdict is arithmetic over two cited numbers — your bill and the official rule — computed by code with no model in the path. Every card carries three anchors: your source, the official source, and the exact subtraction. Anyone can re-run it.
 
 ---
+
+---
+
+## Production Path (Post-Hackathon)
+
+- The billing gateway is a mock for the sprint. Real hospital APIs are out of scope for 36 hours.
+- But the action is real: the agent mutates external state through MCP, which is the production pattern.
+- To go live:
+  1. Replace `BillingGateway` with `RealBillingGateway` in `orchestrator.ts` (one line — see `real_billing_gateway.ts` header comment).
+  2. Set `BILLING_GATEWAY_URL` to the real hospital API endpoint.
+  3. Add authentication headers in `real_billing_gateway.ts` (Bearer token, mTLS, etc.).
+- The engine does not change. The 6-step trunk, the deterministic compare, the two-tier hold — all remain identical. Only the gateway adapter swaps.
+- This is the decoupled architecture: the verdict engine is independent of the billing backend.
 
 ---
 
