@@ -4,6 +4,7 @@
 import type { ProofCard, HoldEvent, Draft } from "@pramaan/contracts";
 import fs from "fs";
 import path from "path";
+import { auditLog } from "../../audit/audit_log.js";
 
 export async function draft(
   cards: ProofCard[],
@@ -32,30 +33,24 @@ export async function draft(
     }
 
     // Build a grounded prompt from gap card data only — no hallucination surface
-    const cardSummaries = gapCards
-      .map(
-        (c) =>
-          `Item: ${c.item} | Charged: ₹${c.your_value} | Official: ₹${c.official_value} | Gap: ₹${c.gap} | Rule: ${c.rule_says_plain}`
-      )
-      .join("\n");
-
-    const holdLine =
-      hold !== null
-        ? `A provisional dispute hold of ₹${hold.amount} has been placed on invoice ${hold.invoice_id}. It auto-releases in 72 hours unless confirmed (hold ID: ${hold.hold_id}).`
-        : "No hold has been placed.";
-
-    const prompt = `You are a formal complaint letter writer. Using ONLY the data provided below, write a professional dispute letter. Do NOT invent any numbers, names, dates, or items not listed below.
-
-DISPUTED ITEMS:
-${cardSummaries}
-
-HOLD STATUS:
-${holdLine}
-
-TEMPLATE TO FILL:
-${template}
-
-Write the letter now using only the data above.`;
+    const prompt =
+      "You are a professional medical billing advocate. Write a formal complaint letter to the hospital billing department.\n\n" +
+      "OVERCHARGES DETECTED:\n" +
+      gapCards
+        .map(
+          (c, i) =>
+            `${i + 1}. ${c.item}: Charged ₹${c.your_value}, Official rate ₹${c.official_value}, Overcharge ₹${c.gap}. ${c.rule_says_plain}`
+        )
+        .join("\n") +
+      (hold !== null
+        ? `\n\nPROVISIONAL HOLD: A hold of ₹${hold.amount} has been placed on this invoice. It will auto-release in 72 hours unless confirmed by the patient.`
+        : "") +
+      "\n\nINSTRUCTIONS:\n" +
+      "- Use ONLY the numbers provided above. Do not invent any amounts.\n" +
+      "- Keep the tone professional, factual, and firm.\n" +
+      "- Request a refund of the overcharged amount.\n" +
+      "- Reference the official source for each overcharge.\n" +
+      "- End with a request for written confirmation of the refund.";
 
     // Dynamic imports — trunk compiles without these deps installed
     const { WatsonXAI } = await import("@ibm-cloud/watsonx-ai");
@@ -85,6 +80,46 @@ Write the letter now using only the data above.`;
     // Empty or whitespace output → fall back rather than send a blank letter
     if (!graniteText || graniteText.trim().length === 0) {
       console.warn("[06_draft] Granite returned empty output — using fallback.");
+      return templateFillStub(cards, hold, template);
+    }
+
+    // ── Number guard ──────────────────────────────────────────────────────────
+    // Build the set of all numbers that legitimately appear in gap cards + hold.
+    // Any number Granite outputs that is NOT in this set is a hallucination.
+    const validNumbers = new Set<number>();
+    for (const c of gapCards) {
+      validNumbers.add(c.your_value);
+      validNumbers.add(c.official_value);
+      validNumbers.add(c.gap);
+    }
+    if (hold !== null) validNumbers.add(hold.amount);
+
+    // Extract every numeric token from Granite's output
+    const numPattern = /₹?\s*([\d,]+\.?\d*)/g;
+    const discardedNumbers: number[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = numPattern.exec(graniteText)) !== null) {
+      const parsed = parseFloat(match[1]!.replace(/,/g, ""));
+      if (!isNaN(parsed) && !validNumbers.has(parsed)) {
+        discardedNumbers.push(parsed);
+      }
+    }
+
+    if (discardedNumbers.length > 0) {
+      console.warn(
+        "[06_draft] Number guard triggered — Granite hallucinated a value. Falling back.",
+        { discarded: discardedNumbers, valid: [...validNumbers] }
+      );
+      auditLog.append({
+        t: "error",
+        run_id: "draft-run-unknown",
+        ts: new Date().toISOString(),
+        payload: {
+          event: "granite_guard_triggered",
+          discarded_numbers: discardedNumbers,
+          valid_numbers: [...validNumbers],
+        },
+      });
       return templateFillStub(cards, hold, template);
     }
 
