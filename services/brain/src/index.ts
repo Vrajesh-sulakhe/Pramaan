@@ -21,6 +21,24 @@ const app = express();
 // Without this, large images return a cryptic 413 from Express before our validation.
 app.use(express.json({ limit: "10mb" }));
 
+// ── 413 handler — fires when Vrajesh's camera image exceeds the body limit ───
+// express.json() throws an error with status 413 before reaching any route.
+// Without this handler, Express returns a cryptic "PayloadTooLargeError" HTML body.
+// This converts it to our standard structured error so the mobile UI can show a
+// helpful message ("Image too large — please use a file under 10 MB").
+app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    "status" in err &&
+    (err as { status: number }).status === 413
+  ) {
+    res.status(413).json({ error: "Image too large. Maximum payload is 10 MB (base64). Please resize the image before sending." });
+    return;
+  }
+  next(err);
+});
+
 const PORT = parseInt(process.env["BRAIN_PORT"] ?? "3000", 10);
 
 // ── GET /health ──────────────────────────────────────────────────────────────

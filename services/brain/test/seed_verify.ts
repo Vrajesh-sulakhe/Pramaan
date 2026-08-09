@@ -17,7 +17,7 @@ import {
 } from "../src/seeds/index.js";
 
 import { auditLog } from "../src/audit/audit_log.js";
-import { THRESHOLD } from "../src/pipeline/confidence.ts";
+import { THRESHOLD } from "../src/pipeline/confidence.js";
 
 // ── Re-assemble PATH B exactly as index.ts does it ──────────────────────────
 const run_id = FIXED_RUN_ID;
