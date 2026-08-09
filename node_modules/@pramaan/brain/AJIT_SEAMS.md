@@ -319,3 +319,37 @@ diff a.json b.json  # must be empty
 *Updated 2026-08-09 — engine hardened for real OCR output (M-P1 through M-P6).*
 *Built with IBM Bob — AI SDLC Partner.*
 *Pramaan · HackVerse Track 3 · One engine. Proof, not opinions.*
+
+---
+
+## Fallback Chain (06_draft.ts)
+
+Priority order when generating the dispute letter:
+
+1. **IBM Granite via watsonx.ai** (10-second timeout via `Promise.race`)  
+   Attempted first if `WATSONX_API_KEY` and `WATSONX_PROJECT_ID` are set.  
+   The number guard runs on Granite's output — if any numeric value in the response  
+   is not present in the gap cards or hold data, the entire Granite response is  
+   discarded and tier 2 is used.
+
+2. **Ollama local** (if installed)  
+   If Granite fails (network down, timeout, SDK error) and a local Ollama instance  
+   is running, the engine can be extended to try Ollama here before falling to  
+   `templateFillStub`. For this sprint, if Ollama is not installed locally, this  
+   tier is skipped — the chain becomes Granite → templateFillStub.  
+   To add Ollama: inside the `catch` block in the seam, before calling  
+   `templateFillStub`, attempt `fetch("http://localhost:11434/api/generate", ...)`.
+
+3. **templateFillStub** (pure string interpolation, no model)  
+   Always available. No network, no model, no SDK required. Fills the letter  
+   template with gap card data from `cards` array. Returns a fully formed letter.
+
+All three paths return `{ text: string, banner: "AI-generated — review before sending" }`.  
+The demo **never depends on a live model call** — `templateFillStub` is always the  
+final safety net and produces a complete, correct letter regardless of network state.
+
+Logs emitted:
+- `[06_draft] WATSONX env vars missing — using fallback.` — env not configured
+- `[06_draft] Granite returned empty output — using fallback.` — empty response
+- `[06_draft] Number guard triggered — Granite hallucinated a value. Falling back.` — guard fired
+- `[06_draft] Granite failed, using fallback:` — network/SDK error, falls to templateFillStub

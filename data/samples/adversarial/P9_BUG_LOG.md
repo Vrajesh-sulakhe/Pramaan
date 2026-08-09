@@ -3,6 +3,21 @@
 > **Rule:** Ajit logs bugs here. Murgesh patches engine side only. Re-run after each fix.
 > **Cut rule:** If a bug is not fixed by 09:00 Day 3, it goes to the Cut List and is narrated around in Q&A. The happy path (seed trap + control) must always remain green.
 
+## P9 RUN RESULT — FINAL
+> **Run date:** 09 Aug 2026
+> **Result:** 🟢 5/5 scenarios PASS · Seed regression PASS · Bug list EMPTY
+>
+> | Scenario | Images used | Result |
+> |---|---|---|
+> | S1 Tilted Bill | `tilted_bill.jpg` (4 494 bytes) | ✅ PASS — hold null, banner present |
+> | S2 Blurred Bill | `blurred_bill.jpg` (11 546 bytes) | ✅ PASS — hold null, low_conf flagged |
+> | S3 Blank Image | empty string + 1×1 white PNG | ✅ PASS — fields=[], hold=null |
+> | S4 Weird Table | `weird_table_bill.jpg` (4 490 bytes) | ✅ PASS — null values → unverified |
+> | S5 Mixed Language | `mixed_language_bill.jpg` (4 511 bytes) | ✅ PASS — no crash, banner present |
+> | Seed regression | `GET /run?seed=trap` ×2 | ✅ PASS — byte-identical, run_id=demo-trap-001 |
+>
+> **P9 gate: CLOSED. Phase 2 gate: OPEN.**
+
 ---
 
 ## How to Add a Bug Entry
