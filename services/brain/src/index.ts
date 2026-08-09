@@ -201,6 +201,14 @@ app.post("/consent", (req: Request, res: Response, next: NextFunction) => {
       return;
     }
 
+    // RUN_NOT_FOUND: a run_id that has produced zero audit events is unknown.
+    // This prevents consent actions against phantom run_ids before any /run was called.
+    const existingTrail = auditLog.list(run_id);
+    if (existingTrail.length === 0) {
+      apiError(res, 404, "RUN_NOT_FOUND", `No run found for run_id: ${run_id}`);
+      return;
+    }
+
     try {
       if (action === "confirm_hold") {
         billingGateway.confirm(hold_id);
