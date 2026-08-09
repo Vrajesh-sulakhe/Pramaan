@@ -86,3 +86,22 @@
   opacity: 0.8;
   line-height: 1.4;
 }
+
+.audit-empty {
+  padding: 8px 20px 16px;
+  font-size: 12px;
+  color: var(--c-text-3, #9ca3af);
+  font-style: italic;
+}
+
+/* V-6: consent event = green dot */
+.audit-entry.entry-consent .entry-dot {
+  background: var(--proof-ok, #34d399);
+  opacity: 1;
+}
+
+/* V-6: hold events = amber dot */
+.audit-entry.entry-hold .entry-dot {
+  background: var(--hold-staged, #fb923c);
+  opacity: 1;
+}

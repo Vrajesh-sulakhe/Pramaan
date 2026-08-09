@@ -52,6 +52,25 @@
   --c-warn-bg:     rgba(251, 191, 36, 0.08);
   --c-warn-border: rgba(251, 191, 36, 0.30);
 
+  /* Proof Status Colors */
+  --proof-ok:         #34d399;
+  --proof-gap:        #fb7185;
+  --proof-yellow:     #facc15;
+  --proof-unverified: #9ca3af;
+
+  /* Hold Chip State Colors */
+  --hold-staged:  #fb923c;
+  --hold-placed:  #34d399;
+
+  /* Glass shadow extended */
+  --glass-shadow-lg: 0 32px 64px -20px rgba(0, 0, 0, 0.95), inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+
+  /* Animation tokens */
+  --duration-instant: 80ms;
+  --duration-fast:    150ms;
+  --duration-normal:  280ms;
+  --ease-liquid:      cubic-bezier(0.16, 1, 0.3, 1);
+
   /* Radius Tokens */
   --r-xs: 6px;
   --r-sm: 10px;
