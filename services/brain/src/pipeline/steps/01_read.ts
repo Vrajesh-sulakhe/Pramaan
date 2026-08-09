@@ -6,53 +6,71 @@ import { applyConfidenceGate } from "../confidence.js";
 
 export async function read(req: RunRequest): Promise<ExtractedField[]> {
   // ═══════════════ AJIT SEAM — START ═══════════════
-  // TODO(ajit): replace this stub body with the real OCR/Docling call.
-  // Contract: signature, types, and orchestrator wiring are Murgesh's.
-  // Replace ONLY the body between the seam markers. Nothing else.
-  //
-  // RULES FOR YOUR BODY:
-  //   1. Report numbers EXACTLY as read — never "fix" a shaky value.
-  //   2. Call applyConfidenceGate(fields) before returning (already imported).
-  //      Do NOT reimplement the 0.90 threshold. One gate, one threshold.
-  //   3. On blank/unreadable input, return []. Never throw.
-  //   4. Docling for PDFs, Tesseract fallback for plain images.
-  //   5. Dynamic-import your OCR dep inside this seam zone so the trunk
-  //      compiles and starts without it installed:
-  //        const { createWorker } = await import('tesseract.js');
-  //
-  // The req.image field is either a base64 string or a file path to a PDF.
-  void req; // suppress unused warning in stub
+  try {
+    // Guard: reject empty / missing input immediately
+    if (!req.image || req.image.trim() === "") return [];
 
-  const stubFields: ExtractedField[] = [
-    {
-      // High-confidence MRI scan — charged above official rate (exercises gap detection)
-      text: "MRI Brain scan",
-      value: 8500,
-      unit: "per scan",
-      bbox: [50, 120, 300, 20],
-      confidence: 0.97,
-      low_conf: false,
-    },
-    {
-      // LOW CONFIDENCE paracetamol line — exercises yellow gate + staged hold path
-      text: "Paracetamol 500mg tablet x 10",
-      value: 45,
-      unit: "per tablet",
-      bbox: [50, 160, 300, 20],
-      confidence: 0.81,
-      low_conf: true, // below 0.90 threshold
-    },
-    {
-      // Blood test at official rate — exercises "ok" path
-      text: "CBC / Complete Blood Count",
-      value: 150,
-      unit: "per test",
-      bbox: [50, 200, 300, 20],
-      confidence: 0.95,
-      low_conf: false,
-    },
-  ];
+    // Dynamic import — trunk compiles without this dep installed
+    const { createWorker } = await import("tesseract.js");
 
-  return applyConfidenceGate(stubFields);
+    const worker = await createWorker("eng");
+    const { data } = await worker.recognize(req.image);
+    await worker.terminate();
+
+    const rawFields: ExtractedField[] = [];
+
+    // Tesseract Page → blocks → paragraphs → lines
+    for (const block of data.blocks ?? []) {
+      for (const para of block.paragraphs) {
+        for (const line of para.lines) {
+          const text = line.text?.trim() ?? "";
+          if (!text) continue;
+
+          // Extract first numeric token exactly as read — never round or correct
+          const numMatch = text.match(/[\d,]+\.?\d*/);
+          const value = numMatch
+            ? parseFloat(numMatch[0].replace(/,/g, ""))
+            : null;
+
+          // Heuristic unit detection — must be one of the allowed values or null
+          let unit: ExtractedField["unit"] = null;
+          const lower = text.toLowerCase();
+          if (lower.includes("per tablet") || lower.includes("/tab"))
+            unit = "per tablet";
+          else if (lower.includes("per scan") || lower.includes("/scan"))
+            unit = "per scan";
+          else if (lower.includes("per day") || lower.includes("/day"))
+            unit = "per day";
+          else if (
+            lower.includes("per procedure") ||
+            lower.includes("/procedure")
+          )
+            unit = "per procedure";
+          else if (lower.includes("total") || lower.includes("grand total"))
+            unit = "total";
+
+          rawFields.push({
+            text,
+            value,
+            unit,
+            bbox: [
+              line.bbox.x0,
+              line.bbox.y0,
+              line.bbox.x1 - line.bbox.x0,
+              line.bbox.y1 - line.bbox.y0,
+            ],
+            // Tesseract reports confidence 0-100; normalise to 0.0-1.0
+            confidence: line.confidence != null ? line.confidence / 100 : 0,
+            low_conf: false, // applyConfidenceGate will set this correctly
+          });
+        }
+      }
+    }
+
+    return applyConfidenceGate(rawFields);
+  } catch (err) {
+    console.error("[01_read] OCR failed:", err);
+    return [];
+  }
   // ═══════════════ AJIT SEAM — END ══════════════════
 }
