@@ -163,6 +163,14 @@ app.post("/consent", (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// ── GET /audit/:run_id — governance trail export ─────────────────────────────
+// Compliance officers (or judges) can inspect the full ordered AuditEvent array
+// for any run_id. Returns [] for unknown run IDs (correct — not a 404).
+app.get("/audit/:run_id", (req: Request, res: Response) => {
+  const { run_id } = req.params;
+  res.json(auditLog.list(run_id));
+});
+
 // ── Global error handler — structured errors, no stack traces, no crashes ────
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   const message = err instanceof Error ? err.message : "Internal error";
