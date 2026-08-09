@@ -1,0 +1,137 @@
+// Built with IBM Bob — AI SDLC Partner
+import express from "express";
+import { orchestrate } from "./pipeline/orchestrator.js";
+import { billingGateway } from "./gateway/billing_gateway.js";
+import { auditLog } from "./audit/audit_log.js";
+import { lookup } from "./pipeline/steps/02_lookup.js";
+import { compare } from "./pipeline/steps/03_compare.js";
+import { prove } from "./pipeline/steps/04_prove.js";
+import { SEED_TRAP_FIELDS, FIXED_HOLD, FIXED_DRAFT, FIXED_RUN_ID, FIXED_AUDIT_TIMESTAMPS, } from "./seeds/trap.js";
+import { CONTROL_SEED_FIELDS, FIXED_CONTROL_RUN_ID } from "./seeds/control.js";
+const app = express();
+app.use(express.json());
+const PORT = parseInt(process.env["BRAIN_PORT"] ?? "3000", 10);
+// ── GET /health ──────────────────────────────────────────────────────────────
+app.get("/health", (_req, res) => {
+    res.json({ ok: true });
+});
+// ── POST /run — live pipeline ────────────────────────────────────────────────
+app.post("/run", async (req, res, next) => {
+    try {
+        const { image, domain } = req.body;
+        if (typeof image !== "string" || (domain !== "bill" && domain !== "lease")) {
+            res.status(400).json({ error: "Invalid request. Required: { image: string, domain: 'bill' | 'lease' }" });
+            return;
+        }
+        const result = await orchestrate({ image, domain });
+        res.json(result);
+    }
+    catch (e) {
+        next(e);
+    }
+});
+// ── GET /run?seed=trap|control — deterministic seeded path (PATH B) ──────────
+// PATH B: short-circuits step 01 (uses fixed seed fields), runs steps 02–05 normally,
+// then injects fixed hold/draft/run_id/timestamps. Engine proves itself; output is byte-identical.
+app.get("/run", async (req, res, next) => {
+    try {
+        const seed = req.query["seed"];
+        const domain = req.query["domain"] ?? "bill";
+        if (domain !== "bill" && domain !== "lease") {
+            res.status(400).json({ error: "domain must be 'bill' or 'lease'" });
+            return;
+        }
+        if (seed === "trap") {
+            // Steps 02–05 run live on the seed fields to prove the engine works
+            const rules = await lookup(SEED_TRAP_FIELDS, "bill");
+            const gaps = compare(SEED_TRAP_FIELDS, rules);
+            const cards = prove(gaps, SEED_TRAP_FIELDS, rules);
+            // Inject fixed hold/draft/run_id/timestamps for byte-identity
+            const ts = FIXED_AUDIT_TIMESTAMPS;
+            res.json({
+                run_id: FIXED_RUN_ID,
+                domain: "bill",
+                extracted_fields: SEED_TRAP_FIELDS,
+                proof_cards: cards,
+                hold: FIXED_HOLD,
+                draft: FIXED_DRAFT,
+                audit: [
+                    { t: "ocr", run_id: FIXED_RUN_ID, ts: ts.ocr, payload: { step: "ocr", field_count: SEED_TRAP_FIELDS.length } },
+                    { t: "lookup", run_id: FIXED_RUN_ID, ts: ts.lookup, payload: { step: "lookup", rule_count: rules.size } },
+                    { t: "compare", run_id: FIXED_RUN_ID, ts: ts.compare, payload: { step: "compare", gap_count: gaps.length } },
+                    { t: "prove", run_id: FIXED_RUN_ID, ts: ts.prove, payload: { step: "prove", card_count: cards.length } },
+                    { t: "hold_placed", run_id: FIXED_RUN_ID, ts: ts.hold, payload: { hold_id: FIXED_HOLD.hold_id, amount: FIXED_HOLD.amount } },
+                    { t: "draft", run_id: FIXED_RUN_ID, ts: ts.draft, payload: { step: "draft" } },
+                ],
+            });
+            return;
+        }
+        if (seed === "control") {
+            const rules = await lookup(CONTROL_SEED_FIELDS, "bill");
+            const gaps = compare(CONTROL_SEED_FIELDS, rules);
+            const cards = prove(gaps, CONTROL_SEED_FIELDS, rules);
+            const ts = FIXED_AUDIT_TIMESTAMPS;
+            res.json({
+                run_id: FIXED_CONTROL_RUN_ID,
+                domain: "bill",
+                extracted_fields: CONTROL_SEED_FIELDS,
+                proof_cards: cards,
+                hold: null,
+                draft: { text: "No overcharges detected. All billed amounts match official rates.", banner: "AI-generated — review before sending" },
+                audit: [
+                    { t: "ocr", run_id: FIXED_CONTROL_RUN_ID, ts: ts.ocr, payload: { step: "ocr", field_count: CONTROL_SEED_FIELDS.length } },
+                    { t: "lookup", run_id: FIXED_CONTROL_RUN_ID, ts: ts.lookup, payload: { step: "lookup", rule_count: rules.size } },
+                    { t: "compare", run_id: FIXED_CONTROL_RUN_ID, ts: ts.compare, payload: { step: "compare", gap_count: gaps.length } },
+                    { t: "prove", run_id: FIXED_CONTROL_RUN_ID, ts: ts.prove, payload: { step: "prove", card_count: cards.length } },
+                    { t: "draft", run_id: FIXED_CONTROL_RUN_ID, ts: ts.draft, payload: { step: "draft" } },
+                ],
+            });
+            return;
+        }
+        res.status(400).json({ error: "Unknown seed. Use ?seed=trap or ?seed=control" });
+    }
+    catch (e) {
+        next(e);
+    }
+});
+// ── POST /consent ────────────────────────────────────────────────────────────
+app.post("/consent", (req, res, next) => {
+    try {
+        const { run_id, hold_id, action } = req.body;
+        if (typeof run_id !== "string" ||
+            typeof hold_id !== "string" ||
+            (action !== "confirm_hold" && action !== "withdraw_hold" && action !== "send_letter")) {
+            res.status(400).json({
+                error: "Required: { run_id: string, hold_id: string, action: 'confirm_hold' | 'withdraw_hold' | 'send_letter' }",
+            });
+            return;
+        }
+        if (action === "confirm_hold") {
+            billingGateway.confirm(hold_id);
+        }
+        else if (action === "withdraw_hold") {
+            billingGateway.release(hold_id, "user_withdraw");
+        }
+        // send_letter: no gateway mutation, just audit
+        const event = {
+            t: "consent",
+            run_id,
+            ts: new Date().toISOString(),
+            payload: { action, hold_id },
+        };
+        auditLog.append(event);
+        res.json({ audit: event });
+    }
+    catch (e) {
+        next(e);
+    }
+});
+// ── Global error handler — structured errors, no stack traces, no crashes ────
+app.use((err, _req, res, _next) => {
+    const message = err instanceof Error ? err.message : "Internal error";
+    res.status(500).json({ error: message });
+});
+app.listen(PORT, () => {
+    console.log(`[pramaan-brain] listening on port ${PORT}`);
+});
+export { app };
