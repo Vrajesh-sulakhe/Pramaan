@@ -5,6 +5,29 @@
 
 ---
 
+## ✅ P9 OFFICIALLY CLOSED — Day 3
+
+> **Closed by:** Ajit (OCR + Granite lane)
+> **Verified by:** Murgesh (TRUNK)
+> **Status: ALL PASS — zero bugs — Phase 2 gate OPEN**
+
+### Final Scorecard (Real Images)
+
+| Scenario | Image | Result | Detail |
+|---|---|---|---|
+| S1 Tilted Bill | `tilted_bill.jpg` | ✅ PASS | hold=null, banner present |
+| S2 Blurred Bill | `blurred_bill.jpg` | ✅ PASS | hold=null, low_conf flagged |
+| S3 Blank Image | empty string + 1×1 PNG | ✅ PASS | fields=[], hold=null |
+| S4 Weird Table | `weird_table_bill.jpg` | ✅ PASS | null values → unverified, no gap |
+| S5 Mixed Language | `mixed_language_bill.jpg` | ✅ PASS | no crash, banner always present |
+| Seed Regression | `GET /run?seed=trap` ×2 | ✅ PASS | byte-identical, run_id=demo-trap-001 |
+
+**Active bugs: 0 · Fixed bugs: 0 · Cut list: 0**
+Freeze tag `freeze-trunk-v1` applied. Ajit's lane frozen.
+
+
+---
+
 ## How to Add a Bug Entry
 
 Copy the template below, fill in the fields, and paste it under **Active Bugs**.
@@ -32,20 +55,20 @@ Copy the template below, fill in the fields, and paste it under **Active Bugs**.
 
 ## Active Bugs
 
-*(none yet — P9 has not run)*
+*(none — P9 closed clean)*
 
 ---
 
 ## Fixed Bugs
 
-*(none yet)*
+*(none — no bugs were filed during P9)*
 
 ---
 
 ## Cut List
 > Bugs that could not be fixed by 09:00 Day 3. Narrate around these in Q&A.
 
-*(none yet)*
+*(none — all scenarios passed first run)*
 
 ---
 
