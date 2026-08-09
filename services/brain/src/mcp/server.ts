@@ -15,6 +15,7 @@ const server = new McpServer({
 });
 
 // ── Tool 1: lookup_rule ──────────────────────────────────────────────────────
+// @ts-ignore — zod v4 + MCP SDK type-depth collision; runtime behaviour is correct
 server.tool(
   "lookup_rule",
   "Search the rulebook for rows matching the given text. Returns [] on no match — not an error.",
@@ -31,6 +32,7 @@ server.tool(
 );
 
 // ── Tool 2: place_hold ───────────────────────────────────────────────────────
+// @ts-ignore — zod v4 + MCP SDK type-depth collision
 server.tool(
   "place_hold",
   "Place a provisional hold on an invoice. Idempotent — same (invoice_id, evidence_pack_id) always returns the same hold.",
@@ -48,6 +50,7 @@ server.tool(
 );
 
 // ── Tool 3: get_hold_status ──────────────────────────────────────────────────
+// @ts-ignore — zod v4 + MCP SDK type-depth collision
 server.tool(
   "get_hold_status",
   "Get the current status of a hold by its hold_id.",
@@ -63,6 +66,7 @@ server.tool(
 );
 
 // ── Tool 4: release_hold ─────────────────────────────────────────────────────
+// @ts-ignore — zod v4 + MCP SDK type-depth collision
 server.tool(
   "release_hold",
   "Release a hold. Returns the updated HoldEvent with status 'released'.",
