@@ -16,6 +16,8 @@ export async function lookup(
 
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i]!;
+    // Skip null/empty text fields — OCR sometimes emits blank lines
+    if (!field.text || field.text.trim().length === 0) continue;
     const matches = lookupRule(domain, field.text);
     if (matches.length > 0) {
       // Use the first (most specific) match per field
