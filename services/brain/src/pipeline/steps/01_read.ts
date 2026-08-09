@@ -1,84 +1,120 @@
 import { createWorker } from 'tesseract.js';
+import { DocumentConverter } from '@docling/core';
+import { ExtractedField } from '../../packages/contracts'; // Path as requested
 
-export interface ExtractedField {
-  text: string;
-  value: string | number | null;
-  bbox: [number, number, number, number];
-  confidence: number;
+const THRESHOLD = 0.90;
+
+export interface RunRequest {
+  image: string;
+  domain: "bill" | "lease";
 }
 
-export interface ReadResult {
-  documentId: string;
-  fields: Record<string, ExtractedField>;
-  metadata: {
-    lowConfidenceFlag: boolean;
-    confidenceThreshold: number;
-  };
-}
+export async function read(req: RunRequest): Promise<ExtractedField[]> {
+  const results: ExtractedField[] = [];
 
-/**
- * Phase 2: OCR Pipeline implementation (AJIT - SAP)
- * Hardened to score confidence per field and emit a low-confidence flag
- * for the yellow "tap to confirm" UI.
- */
-export async function readDocument(imageBuffer: Buffer): Promise<ReadResult> {
-  // Graceful failure check for empty/bad input
-  if (!imageBuffer || imageBuffer.length === 0) {
-    console.warn("Received empty image buffer. Gracefully returning unverified.");
-    return generateUnverifiedResult();
-  }
-
-  const worker = await createWorker('eng');
-  const confidenceThreshold = 90.0; // 90% threshold for the yellow UI gate
-  let lowConfidenceFlag = false;
-  
   try {
-    // 1. Run OCR (extracts text, bounding boxes, and confidence per word/line)
-    const { data } = await worker.recognize(imageBuffer);
-    const fields: Record<string, ExtractedField> = {};
-    
-    // 2. Process lines and check against the confidence gate
-    data.lines.forEach((line, index) => {
-      const conf = line.confidence; // Tesseract returns 0-100
-      
-      // Confidence Gate Logic
-      if (conf < confidenceThreshold) {
-        lowConfidenceFlag = true;
+    if (!req.image || req.image.trim() === '') {
+      return [];
+    }
+
+    const isPdf = req.image.toLowerCase().endsWith('.pdf') || req.image.startsWith('data:application/pdf');
+
+    if (isPdf) {
+      // 1. Use Docling for PDFs
+      const converter = new DocumentConverter();
+      const doc = await converter.convert(req.image);
+
+      if (!doc) return [];
+
+      // Extract regular text blocks
+      if (doc.pages) {
+        for (const page of doc.pages) {
+          if (page.texts) {
+            for (const textItem of page.texts) {
+              results.push(parseField(
+                textItem.text,
+                [textItem.bbox.x, textItem.bbox.y, textItem.bbox.width, textItem.bbox.height],
+                textItem.confidence ?? 1.0
+              ));
+            }
+          }
+        }
       }
-      
-      fields[`line_${index}`] = {
-        text: line.text.trim(),
-        value: line.text.trim(), // Storing raw text as value for generic lines
-        bbox: [line.bbox.x0, line.bbox.y0, line.bbox.x1, line.bbox.y1],
-        confidence: conf / 100.0, // Normalize to 0.0 - 1.0 contract
-      };
-    });
-    
-    // 3. Return output perfectly matching the Vrajesh UI contract
-    return {
-      documentId: `doc_${Date.now()}`,
-      fields,
-      metadata: {
-        lowConfidenceFlag,
-        confidenceThreshold: confidenceThreshold / 100.0
+
+      // 7. Handle tables specifically for line items
+      if (doc.tables) {
+        for (const table of doc.tables) {
+          if (table.cells) {
+            for (const cell of table.cells) {
+              results.push(parseField(
+                cell.text,
+                [cell.bbox.x, cell.bbox.y, cell.bbox.width, cell.bbox.height],
+                cell.confidence ?? 1.0
+              ));
+            }
+          }
+        }
       }
-    };
-    
+
+    } else {
+      // 1. Fall back to Tesseract.js for Images
+      const worker = await createWorker('eng');
+      try {
+        const { data } = await worker.recognize(req.image);
+        
+        if (data && data.words) {
+          // Extract word-level data as requested
+          for (const word of data.words) {
+            const x = word.bbox.x0;
+            const y = word.bbox.y0;
+            const width = word.bbox.x1 - word.bbox.x0;
+            const height = word.bbox.y1 - word.bbox.y0;
+            
+            results.push(parseField(
+              word.text.trim(),
+              [x, y, width, height],
+              word.confidence / 100.0 // Normalize 0-100 to 0.0-1.0
+            ));
+          }
+        }
+      } finally {
+        await worker.terminate();
+      }
+    }
   } catch (error) {
-    console.error("OCR Pipeline Crashed. Catching and returning unverified state.", error);
-    return generateUnverifiedResult();
-  } finally {
-    await worker.terminate();
+    console.error("OCR Pipeline failed gracefully:", error);
+    // 6. Return empty array on failure, do not crash
+    return [];
   }
+
+  return results;
 }
 
-function generateUnverifiedResult(): ReadResult {
-  return {
-    documentId: `doc_${Date.now()}`,
-    fields: {},
-    metadata: {
-      lowConfidenceFlag: true,
-      confidenceThreshold: 0.90
+function parseField(text: string, bbox: [number, number, number, number], conf: number): ExtractedField {
+  // 2. Parse out a numeric value if present
+  let value: number | null = null;
+  const numMatch = text.match(/-?[\d,]+(\.\d+)?/);
+  if (numMatch) {
+    const parsed = parseFloat(numMatch[0].replace(/,/g, ''));
+    if (!isNaN(parsed)) {
+      value = parsed;
     }
+  }
+
+  // 2. Parse out unit string if present (e.g. "per tablet")
+  let unit: string | null = null;
+  const unitMatch = text.match(/\b(per\s+[a-zA-Z]+)\b/i);
+  if (unitMatch) {
+    unit = unitMatch[1].toLowerCase();
+  }
+
+  // 3 & 4. Confidence and low_conf flag
+  return {
+    text,
+    value,
+    unit,
+    bbox,
+    confidence: conf,
+    low_conf: conf < THRESHOLD
   };
 }
