@@ -2,32 +2,56 @@ import React, { useEffect, useState } from 'react';
 import { IonPage, IonContent } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useSession } from '../context/SessionContext';
-import { ChevronLeft, TriangleAlert, Lock, Unlock, RotateCcw, Send, FileSpreadsheet, Eye, ShieldCheck, Clock } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ChevronLeft, TriangleAlert, Lock, Unlock, RotateCcw, Send, FileSpreadsheet, Eye, ShieldCheck, Clock, FileText, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { fetchRun, consent } from '../data/dataSource';
 import { RunResponse } from '../data/mockRun';
 import { BBoxOverlay } from '../components/BBoxOverlay';
 
 export const Results: React.FC = () => {
   const [data, setData] = useState<RunResponse | null>(null);
-  const [viewMode, setViewMode] = useState<'proofs' | 'ocr'>('proofs');
-  const { state, resetSession } = useSession();
+  const [viewMode, setViewMode] = useState<'proofs' | 'ocr' | 'letter'>('proofs');
+  const { state, resetSession, saveToVault, updateVaultItemHold } = useSession();
   const history = useHistory();
 
   useEffect(() => {
-    fetchRun({ domain: state.domain, captureType: state.captureType, captureData: state.captureData }).then((res: any) => setData(res));
+    fetchRun({ domain: state.domain, captureType: state.captureType, captureData: state.captureData }).then((res: any) => {
+      setData(res);
+      // Auto-sync into dynamic persistent Vault
+      const gapProofs = res.proofs.filter((p: any) => p.status === 'gap');
+      const numMatch = res.hold.amount.replace(/[^0-9]/g, '');
+      const numVal = parseInt(numMatch, 10) || 0;
+
+      saveToVault({
+        id: res.id,
+        title: state.domain === 'bill' ? 'Hospital Invoice #8921 — Radiology' : 'Residential Lease Agreement',
+        domain: state.domain,
+        captureType: state.captureType,
+        captureData: state.captureData,
+        createdAt: new Date().toISOString(),
+        disputedAmount: res.hold.amount,
+        disputedNumber: numVal,
+        holdStatus: res.hold.status,
+        proofsCount: res.proofs.length,
+        gapCount: gapProofs.length,
+        hash: `0x${res.id.slice(-8)}a91e`,
+        summary: gapProofs.length > 0 ? gapProofs[0].summaryText : 'All amounts match statutory ceilings.',
+      });
+    });
   }, []);
 
   const handleHold = async () => {
     if (!data || data.hold.status !== 'staged') return;
     const res = await consent(data.id, 'confirm_hold');
     setData({ ...data, hold: { ...data.hold, status: 'placed' }, audit: [...data.audit, res.audit] });
+    updateVaultItemHold(data.id, 'placed');
   };
 
   const handleWithdraw = async () => {
     if (!data || data.hold.status !== 'placed') return;
     const res = await consent(data.id, 'withdraw_hold');
     setData({ ...data, hold: { ...data.hold, status: 'released' }, audit: [...data.audit, res.audit] });
+    updateVaultItemHold(data.id, 'released');
   };
 
   const back = () => { resetSession(); history.push('/dashboard'); };
@@ -46,30 +70,35 @@ export const Results: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            paddingTop: 'calc(var(--sat) + 14px)',
+            paddingTop: 'calc(var(--sat) + 12px)',
             paddingLeft: 20,
             paddingRight: 20,
             paddingBottom: 16,
-            borderBottom: '1px solid var(--c-border)',
-            background: '#000000',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'rgba(5, 5, 8, 0.85)',
+            backdropFilter: 'blur(20px)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 30,
           }}>
             <button
               onClick={back}
               style={{
-                background: 'var(--c-surface-1)',
-                border: '1px solid var(--c-border-md)',
-                borderRadius: 10,
-                padding: '7px 12px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                borderRadius: 12,
+                padding: '8px 14px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 5,
+                gap: 6,
                 color: 'var(--c-text-1)',
                 fontSize: 13,
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: 'pointer',
               }}
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={18} />
               Dashboard
             </button>
 
@@ -77,31 +106,31 @@ export const Results: React.FC = () => {
               <span style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 5,
-                padding: '4px 9px',
-                borderRadius: 12,
+                gap: 6,
+                padding: '5px 11px',
+                borderRadius: 20,
                 background: gapCount > 0 ? 'var(--c-danger-bg)' : 'var(--c-success-bg)',
                 border: `1px solid ${gapCount > 0 ? 'var(--c-danger-border)' : 'var(--c-success-border)'}`,
                 color: gapCount > 0 ? 'var(--c-danger)' : 'var(--c-success)',
                 fontSize: 11,
-                fontWeight: 700,
+                fontWeight: 800,
                 letterSpacing: '0.4px',
                 textTransform: 'uppercase',
               }}>
-                {gapCount > 0 ? `${gapCount} Discrepancies` : '100% Verified'}
+                {gapCount > 0 ? `${gapCount} Discrepancy Found` : '100% Compliant'}
               </span>
             )}
           </div>
 
           {/* Loading State */}
           {!data && (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 14, padding: 48 }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 48 }}>
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
-                style={{ width: 28, height: 28, borderRadius: '50%', border: '2px solid var(--c-text-2)', borderTopColor: 'transparent' }}
+                style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid rgba(255, 255, 255, 0.6)', borderTopColor: 'transparent' }}
               />
-              <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--c-text-2)', margin: 0 }}>Finalizing verification report…</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-text-2)', margin: 0 }}>Finalizing verification report…</p>
             </div>
           )}
 
@@ -110,25 +139,27 @@ export const Results: React.FC = () => {
               {/* Hero Banner */}
               <div style={{ padding: '16px 20px 0' }}>
                 <div style={{
-                  background: 'var(--c-surface-1)',
+                  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%)',
                   border: `1px solid ${gapCount > 0 ? 'var(--c-danger-border)' : 'var(--c-success-border)'}`,
-                  borderRadius: 16,
-                  padding: 18,
+                  boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                  backdropFilter: 'blur(20px)',
+                  borderRadius: 20,
+                  padding: 22,
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    {gapCount > 0 ? <TriangleAlert size={16} color="var(--c-danger)" /> : <ShieldCheck size={16} color="var(--c-success)" />}
-                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: gapCount > 0 ? 'var(--c-danger)' : 'var(--c-success)' }}>
-                      {gapCount > 0 ? 'Statutory Overcharge Alert' : 'Deterministic Audit Passed'}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    {gapCount > 0 ? <TriangleAlert size={18} color="var(--c-danger)" /> : <ShieldCheck size={18} color="var(--c-success)" />}
+                    <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.8px', textTransform: 'uppercase', color: gapCount > 0 ? 'var(--c-danger)' : 'var(--c-success)' }}>
+                      {gapCount > 0 ? 'Statutory Overcharge Detected' : 'Deterministic Audit Passed'}
                     </span>
                   </div>
 
-                  <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--c-text-1)', letterSpacing: '-0.6px', lineHeight: 1.1, marginBottom: 6 }}>
+                  <div style={{ fontSize: 30, fontWeight: 900, color: '#ffffff', letterSpacing: '-0.8px', lineHeight: 1.1, marginBottom: 8, fontFamily: 'IBM Plex Mono, monospace' }}>
                     {gapCount > 0 ? `${data.hold.amount} Disputed Gap` : '₹0 Gap Detected'}
                   </div>
 
-                  <p style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--c-text-2)', margin: 0 }}>
+                  <p style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--c-text-2)', margin: 0 }}>
                     {gapCount > 0
-                      ? 'Official rate schedule violated. A 72-hour reversible protection hold and dispute letter are prepared.'
+                      ? 'Statutory rate schedule violated. A 72-hour reversible protection hold and dispute letter are ready.'
                       : 'All charges match government tariff schedules perfectly.'}
                   </p>
                 </div>
@@ -138,9 +169,9 @@ export const Results: React.FC = () => {
               <div style={{ padding: '14px 20px 0' }}>
                 <div style={{
                   display: 'flex',
-                  background: 'var(--c-surface-1)',
-                  border: '1px solid var(--c-border)',
-                  borderRadius: 10,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: 12,
                   padding: 3,
                   gap: 3,
                 }}>
@@ -148,54 +179,76 @@ export const Results: React.FC = () => {
                     onClick={() => setViewMode('proofs')}
                     style={{
                       flex: 1,
-                      height: 36,
-                      borderRadius: 8,
+                      height: 38,
+                      borderRadius: 9,
                       fontSize: 12,
-                      fontWeight: 600,
+                      fontWeight: 700,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: 5,
                       cursor: 'pointer',
-                      border: 'none',
-                      background: viewMode === 'proofs' ? 'var(--c-surface-2)' : 'transparent',
-                      color: viewMode === 'proofs' ? 'var(--c-text-1)' : 'var(--c-text-3)',
+                      border: viewMode === 'proofs' ? '1px solid rgba(255, 255, 255, 0.16)' : '1px solid transparent',
+                      background: viewMode === 'proofs' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                      color: viewMode === 'proofs' ? '#ffffff' : 'var(--c-text-3)',
                     }}
                   >
-                    <FileSpreadsheet size={14} />
+                    <FileSpreadsheet size={15} />
                     Verified Proofs ({data.proofs.length})
                   </button>
                   <button
                     onClick={() => setViewMode('ocr')}
                     style={{
                       flex: 1,
-                      height: 36,
-                      borderRadius: 8,
+                      height: 38,
+                      borderRadius: 9,
                       fontSize: 12,
-                      fontWeight: 600,
+                      fontWeight: 700,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: 5,
                       cursor: 'pointer',
-                      border: 'none',
-                      background: viewMode === 'ocr' ? 'var(--c-surface-2)' : 'transparent',
-                      color: viewMode === 'ocr' ? 'var(--c-text-1)' : 'var(--c-text-3)',
+                      border: viewMode === 'ocr' ? '1px solid rgba(255, 255, 255, 0.16)' : '1px solid transparent',
+                      background: viewMode === 'ocr' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                      color: viewMode === 'ocr' ? '#ffffff' : 'var(--c-text-3)',
                     }}
                   >
-                    <Eye size={14} />
+                    <Eye size={15} />
                     OCR Scanner
+                  </button>
+                  <button
+                    onClick={() => setViewMode('letter')}
+                    style={{
+                      flex: 1,
+                      height: 38,
+                      borderRadius: 9,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 5,
+                      cursor: 'pointer',
+                      border: viewMode === 'letter' ? '1px solid rgba(255, 255, 255, 0.16)' : '1px solid transparent',
+                      background: viewMode === 'letter' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                      color: viewMode === 'letter' ? '#ffffff' : 'var(--c-text-3)',
+                    }}
+                  >
+                    <FileText size={15} />
+                    Notice Letter
                   </button>
                 </div>
               </div>
 
-              {/* Proofs List */}
+              {/* Main Content Pane */}
               <div style={{ padding: '14px 20px 0' }}>
-                {viewMode === 'ocr' ? (
+                {viewMode === 'ocr' && (
                   <div style={{
-                    background: 'var(--c-surface-1)',
-                    border: '1px solid var(--c-border)',
-                    borderRadius: 16,
+                    background: 'rgba(255, 255, 255, 0.035)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                    borderRadius: 18,
                     overflow: 'hidden',
                   }}>
                     <BBoxOverlay
@@ -204,19 +257,48 @@ export const Results: React.FC = () => {
                       fields={data.fields}
                     />
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                )}
+
+                {viewMode === 'letter' && (
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.035)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                    borderRadius: 18,
+                    padding: 18,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                      <CheckCircle2 size={16} color="var(--c-success)" />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#ffffff' }}>Statutory Notice Draft</span>
+                    </div>
+                    <pre style={{
+                      fontFamily: 'Inter, sans-serif',
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      color: 'var(--c-text-2)',
+                      whiteSpace: 'pre-wrap',
+                      margin: 0,
+                    }}>
+                      {data.draftText}
+                    </pre>
+                  </div>
+                )}
+
+                {viewMode === 'proofs' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {data.proofs.map((proof, i) => (
                       <motion.div
                         key={proof.id}
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.06 }}
                         style={{
-                          background: 'var(--c-surface-1)',
-                          border: `1px solid ${proof.status === 'gap' ? 'var(--c-danger-border)' : 'var(--c-border-md)'}`,
-                          borderRadius: 16,
-                          padding: 14,
+                          background: 'rgba(255, 255, 255, 0.035)',
+                          border: `1px solid ${proof.status === 'gap' ? 'var(--c-danger-border)' : 'rgba(255, 255, 255, 0.1)'}`,
+                          boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                          backdropFilter: 'blur(20px)',
+                          borderRadius: 18,
+                          padding: 18,
                           position: 'relative',
                           overflow: 'hidden',
                         }}
@@ -226,21 +308,21 @@ export const Results: React.FC = () => {
                           top: 0,
                           left: 0,
                           right: 0,
-                          height: 2.5,
+                          height: 3,
                           background: proof.status === 'gap' ? 'var(--c-danger)' : 'var(--c-success)',
                         }} />
 
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-text-1)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: '#ffffff' }}>
                             {proof.itemName}
                           </span>
                           <span style={{
-                            padding: '2px 7px',
-                            borderRadius: 8,
+                            padding: '3px 8px',
+                            borderRadius: 10,
                             background: proof.status === 'gap' ? 'var(--c-danger-bg)' : 'var(--c-success-bg)',
                             color: proof.status === 'gap' ? 'var(--c-danger)' : 'var(--c-success)',
                             fontSize: 10,
-                            fontWeight: 700,
+                            fontWeight: 800,
                             letterSpacing: '0.4px',
                             textTransform: 'uppercase',
                           }}>
@@ -248,22 +330,23 @@ export const Results: React.FC = () => {
                           </span>
                         </div>
 
-                        {/* 3-Column Comparison */}
+                        {/* 3-Column Comparison Grid */}
                         <div style={{
                           display: 'grid',
                           gridTemplateColumns: '1fr 1fr 1fr',
                           gap: 6,
-                          background: 'var(--c-surface-2)',
-                          padding: 10,
-                          borderRadius: 10,
-                          marginBottom: 10,
+                          background: 'rgba(0, 0, 0, 0.4)',
+                          border: '1px solid rgba(255, 255, 255, 0.06)',
+                          padding: 12,
+                          borderRadius: 12,
+                          marginBottom: 12,
                           textAlign: 'center',
                         }}>
                           <div style={{ textAlign: 'left' }}>
-                            <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: 'var(--c-text-3)', display: 'block', marginBottom: 2 }}>
+                            <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: 'var(--c-text-3)', display: 'block', marginBottom: 2 }}>
                               {proof.sourceLabel}
                             </span>
-                            <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-text-1)' }}>
+                            <span style={{ fontSize: 16, fontWeight: 900, color: '#ffffff', fontFamily: 'IBM Plex Mono, monospace' }}>
                               {proof.sourceValue}
                             </span>
                             <span style={{ fontSize: 10, color: 'var(--c-text-3)', display: 'block', marginTop: 1 }}>
@@ -272,10 +355,10 @@ export const Results: React.FC = () => {
                           </div>
 
                           <div>
-                            <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: 'var(--c-text-3)', display: 'block', marginBottom: 2 }}>
+                            <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: 'var(--c-text-3)', display: 'block', marginBottom: 2 }}>
                               {proof.computeLabel}
                             </span>
-                            <span style={{ fontSize: 15, fontWeight: 800, color: proof.status === 'gap' ? 'var(--c-danger)' : 'var(--c-success)' }}>
+                            <span style={{ fontSize: 16, fontWeight: 900, color: proof.status === 'gap' ? 'var(--c-danger)' : 'var(--c-success)', fontFamily: 'IBM Plex Mono, monospace' }}>
                               {proof.computeValue}
                             </span>
                             {proof.computeMath && (
@@ -286,10 +369,10 @@ export const Results: React.FC = () => {
                           </div>
 
                           <div style={{ textAlign: 'right' }}>
-                            <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: 'var(--c-text-3)', display: 'block', marginBottom: 2 }}>
+                            <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: 'var(--c-text-3)', display: 'block', marginBottom: 2 }}>
                               {proof.ruleLabel}
                             </span>
-                            <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-text-1)' }}>
+                            <span style={{ fontSize: 16, fontWeight: 900, color: '#ffffff', fontFamily: 'IBM Plex Mono, monospace' }}>
                               {proof.ruleValue}
                             </span>
                             <span style={{ fontSize: 10, color: 'var(--c-text-2)', textDecoration: 'underline', display: 'block', marginTop: 1 }}>
@@ -300,10 +383,10 @@ export const Results: React.FC = () => {
 
                         <p style={{
                           fontSize: 12,
-                          lineHeight: 1.5,
+                          lineHeight: 1.55,
                           color: 'var(--c-text-2)',
                           margin: 0,
-                          paddingLeft: 8,
+                          paddingLeft: 10,
                           borderLeft: `2px solid ${proof.status === 'gap' ? 'var(--c-danger)' : 'var(--c-success)'}`,
                         }}>
                           {proof.summaryText}
@@ -314,31 +397,32 @@ export const Results: React.FC = () => {
                 )}
               </div>
 
-              {/* Audit Trail */}
+              {/* Audit Blockchain Trail */}
               <div style={{ padding: '16px 20px 0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                   <Clock size={13} color="var(--c-text-3)" />
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--c-text-3)', margin: 0 }}>
+                  <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.8px', textTransform: 'uppercase', color: 'var(--c-text-3)', margin: 0 }}>
                     Deterministic Audit Trail
                   </p>
                 </div>
 
                 <div style={{
-                  background: 'var(--c-surface-1)',
-                  border: '1px solid var(--c-border)',
-                  borderRadius: 12,
-                  padding: '8px 12px',
+                  background: 'rgba(255, 255, 255, 0.035)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+                  borderRadius: 14,
+                  padding: '8px 14px',
                 }}>
                   {data.audit.map((ev, i) => (
                     <div key={ev.id} style={{
                       display: 'flex',
                       alignItems: 'flex-start',
                       justifyContent: 'space-between',
-                      padding: '8px 0',
-                      borderBottom: i < data.audit.length - 1 ? '1px solid var(--c-border)' : 'none',
+                      padding: '10px 0',
+                      borderBottom: i < data.audit.length - 1 ? '1px solid rgba(255, 255, 255, 0.06)' : 'none',
                     }}>
                       <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-text-1)', fontFamily: 'IBM Plex Mono, monospace' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#ffffff', fontFamily: 'IBM Plex Mono, monospace' }}>
                           {ev.t}
                         </span>
                         <p style={{ fontSize: 11, color: 'var(--c-text-2)', margin: '2px 0 0 0' }}>
@@ -355,7 +439,7 @@ export const Results: React.FC = () => {
             </div>
           )}
 
-          {/* Sticky Bottom Action Bar */}
+          {/* Sticky Bottom Protective Action Bar */}
           {data && (
             <div style={{
               position: 'fixed',
@@ -363,12 +447,13 @@ export const Results: React.FC = () => {
               left: 0,
               right: 0,
               margin: '0 auto',
-              maxWidth: 480,
-              padding: '12px 20px',
+              maxWidth: 440,
+              padding: '14px 20px',
               paddingBottom: 'calc(var(--sab) + 12px)',
-              background: 'rgba(0, 0, 0, 0.95)',
-              borderTop: '1px solid var(--c-border-md)',
-              backdropFilter: 'blur(16px)',
+              background: 'rgba(5, 5, 8, 0.92)',
+              borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(24px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(24px) saturate(180%)',
               display: 'flex',
               flexDirection: 'column',
               gap: 8,
@@ -382,9 +467,9 @@ export const Results: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px 16px',
-                    borderRadius: 12,
+                    borderRadius: 14,
                     border: `1px solid ${isPlaced ? 'var(--c-success-border)' : 'var(--c-warn-border)'}`,
-                    background: isPlaced ? 'var(--c-surface-1)' : 'var(--c-surface-1)',
+                    background: isPlaced ? 'rgba(52, 211, 153, 0.12)' : 'rgba(251, 191, 36, 0.12)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -393,35 +478,34 @@ export const Results: React.FC = () => {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: 8,
-                      background: isPlaced ? 'var(--c-success-bg)' : 'var(--c-warn-bg)',
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      background: isPlaced ? 'var(--c-success)' : 'var(--c-warn)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: isPlaced ? 'var(--c-success)' : 'var(--c-warn)',
+                      color: '#050508',
                     }}>
-                      {isPlaced ? <Lock size={16} strokeWidth={2.2} /> : <Unlock size={16} strokeWidth={2.2} />}
+                      {isPlaced ? <Lock size={18} strokeWidth={2.4} /> : <Unlock size={18} strokeWidth={2.4} />}
                     </div>
                     <div style={{ textAlign: 'left' }}>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-text-1)' }}>
+                      <div style={{ fontSize: 15, fontWeight: 900, color: '#ffffff', fontFamily: 'IBM Plex Mono, monospace' }}>
                         {data.hold.amount} Disputed
                       </div>
-                      <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--c-text-2)' }}>
-                        {isStaged ? 'Tap to place 72h reversible hold' : '72h Reversible Protection Active'}
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-text-2)' }}>
+                        {isStaged ? 'Tap to place 72h reversible protection hold' : '72h Reversible Protection Active'}
                       </div>
                     </div>
                   </div>
 
                   <span style={{
-                    padding: '4px 8px',
-                    borderRadius: 8,
-                    background: isPlaced ? 'var(--c-success-bg)' : 'var(--c-warn-bg)',
-                    color: isPlaced ? 'var(--c-success)' : 'var(--c-warn)',
-                    border: `1px solid ${isPlaced ? 'var(--c-success-border)' : 'var(--c-warn-border)'}`,
+                    padding: '4px 9px',
+                    borderRadius: 12,
+                    background: isPlaced ? 'var(--c-success)' : 'var(--c-warn)',
+                    color: '#050508',
                     fontSize: 10,
-                    fontWeight: 800,
+                    fontWeight: 900,
                   }}>
                     {isPlaced ? 'LOCKED' : 'FREEZE'}
                   </span>
@@ -435,29 +519,29 @@ export const Results: React.FC = () => {
                     onClick={handleWithdraw}
                     style={{
                       flex: 1,
-                      height: 46,
-                      borderRadius: 10,
-                      background: 'var(--c-surface-1)',
-                      border: '1px solid var(--c-border-md)',
-                      color: 'var(--c-text-1)',
+                      height: 48,
+                      borderRadius: 12,
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      color: '#ffffff',
                       fontSize: 13,
-                      fontWeight: 600,
+                      fontWeight: 700,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 5,
+                      gap: 6,
                       cursor: 'pointer',
                     }}
                   >
-                    <RotateCcw size={14} />
+                    <RotateCcw size={15} />
                     Withdraw
                   </button>
                   <button
                     onClick={() => alert('Dispute notice officially sent to billing administrator!')}
                     className="btn-primary"
-                    style={{ flex: 2, height: 46, borderRadius: 10, fontSize: 13 }}
+                    style={{ flex: 2, height: 48, borderRadius: 12, fontSize: 13 }}
                   >
-                    <Send size={14} />
+                    <Send size={15} />
                     Send Legal Notice
                   </button>
                 </div>
