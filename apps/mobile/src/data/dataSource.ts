@@ -1,10 +1,11 @@
 // apps/mobile/src/data/dataSource.ts
-// V-1: flipped to LIVE mode — talks to Murgesh's engine at VITE_BRAIN_URL.
+// V-IH-1/V-IH-5: Uses structured PramaanError + retry options from apiClient.
 // This file is the ONLY place that maps the engine contract → UI RunResponse.
 // NEVER recompute gaps, hold status, or draft text here. Render verbatim.
 
 import { RunResponse, AuditEvent, generateDynamicMockRun, mockConsentResponse } from './mockRun';
-import { apiClient } from './apiClient';
+import { apiClient, PramaanError } from './apiClient';
+export { PramaanError };
 
 // THE SWITCH: Read from .env.local (default 'live' — set 'mock' for offline dev)
 const MODE = import.meta.env.VITE_RUN_MODE || 'live';
@@ -12,13 +13,13 @@ const MODE = import.meta.env.VITE_RUN_MODE || 'live';
 // ─── Engine contract (what Murgesh's POST /run actually returns) ───────────
 interface EngineRunResponse {
   id: string;
-  extracted_fields: Array<{
+  extracted_fields?: Array<{
     id: string;
     value: string;
     bbox: [number, number, number, number];
     low_conf: boolean;
   }>;
-  proof_cards: Array<{
+  proof_cards?: Array<{
     id: string;
     status: 'gap' | 'ok' | 'unverified';
     item_name: string;
@@ -29,15 +30,15 @@ interface EngineRunResponse {
     source_anchor: { ref: string; url?: string };
     rule_anchor: { ref: string; url?: string };
   }>;
-  hold: null | {
+  hold?: null | {
     status: 'staged' | 'placed' | 'released';
     amount: string;
   };
-  draft: {
-    text: string;
-    banner: string;
-  };
-  audit: Array<{
+  draft?: {
+    text?: string;
+    banner?: string;
+  } | null;
+  audit?: Array<{
     id: string;
     ts: string;
     t: string;
@@ -45,59 +46,71 @@ interface EngineRunResponse {
   }>;
 }
 
-// Map engine response → UI RunResponse (single translation point)
+// V-IH-2: Map engine response → UI RunResponse with full defensive fallbacks.
+// Every array access uses ?. and ?? to prevent any crash on partial data.
 function mapEngineResponse(raw: EngineRunResponse): RunResponse {
   console.log('[DataSource] raw engine response:', raw);
 
   return {
-    id: raw.id,
-    // V-3: bbox overlay fields
-    fields: raw.extracted_fields.map(f => ({
-      id: f.id,
-      value: f.value,
-      bbox: f.bbox,
-      low_conf: f.low_conf,
+    id: raw.id ?? `fallback-${Date.now()}`,
+
+    // V-IH-2: extracted_fields === [] → UI shows "No text detected" state
+    fields: (raw.extracted_fields ?? []).map(f => ({
+      id: f.id ?? '',
+      value: f.value ?? '',
+      bbox: f.bbox ?? [0, 0, 0, 0],
+      low_conf: f.low_conf ?? false,
     })),
-    // V-2: proof cards — render verbatim, never recompute
-    proofs: raw.proof_cards.map(p => ({
-      id: p.id,
-      status: p.status,
-      itemName: p.item_name,
+
+    // V-IH-2: proof_cards === [] → UI shows "No issues found" state
+    proofs: (raw.proof_cards ?? []).map(p => ({
+      id: p.id ?? '',
+      status: p.status ?? 'unverified',
+      itemName: p.item_name ?? 'Unknown item',
       sourceLabel: 'Your Bill',
-      sourceValue: p.your_value,
-      sourceRef: p.source_anchor.ref,
-      sourceRefUrl: p.source_anchor.url,
+      sourceValue: p.your_value ?? '—',
+      sourceRef: p.source_anchor?.ref ?? '',
+      sourceRefUrl: p.source_anchor?.url,
       computeLabel: 'Gap',
-      computeValue: p.gap,
+      computeValue: p.gap ?? '—',
       ruleLabel: 'Official Rate',
-      ruleValue: p.official_value,
-      ruleRefText: p.rule_anchor.ref,
-      ruleRefUrl: p.rule_anchor.url,
-      // V-2: rule_says_plain is Manas's human-readable rule line
-      summaryText: p.rule_says_plain,
+      ruleValue: p.official_value ?? '—',
+      ruleRefText: p.rule_anchor?.ref ?? '',
+      ruleRefUrl: p.rule_anchor?.url,
+      summaryText: p.rule_says_plain ?? '',
     })),
-    // V-4: hold — null is valid, render "No hold" state
+
+    // V-IH-2: hold === null | undefined → null (UI renders "No hold" chip)
     hold: raw.hold ?? null,
-    // V-5: draft — render verbatim + mandatory banner
+
+    // V-IH-2: draft === null | empty → '' (UI renders "No draft available")
     draftText: raw.draft?.text ?? '',
     draftBanner: raw.draft?.banner ?? 'AI-generated — review before sending',
-    // V-6: audit events with ISO ts → Date
-    audit: raw.audit.map(a => ({
-      id: a.id,
-      ts: new Date(a.ts),
-      t: a.t,
-      payload: a.payload,
+
+    // V-IH-2: audit === [] → UI renders "Audit trail will appear after analysis."
+    audit: (raw.audit ?? []).map(a => ({
+      id: a.id ?? '',
+      ts: new Date(a.ts ?? Date.now()),
+      t: a.t ?? '',
+      payload: a.payload ?? '',
     })),
   };
 }
 
-export async function fetchRun(input: {
-  image?: string;
-  domain: 'bill' | 'lease';
-  captureType?: string | null;
-  captureData?: string | null;
-  seed?: 'trap';
-}): Promise<RunResponse> {
+interface FetchRunCallbacks {
+  onRetry?: (attempt: number) => void;
+}
+
+export async function fetchRun(
+  input: {
+    image?: string;
+    domain: 'bill' | 'lease';
+    captureType?: string | null;
+    captureData?: string | null;
+    seed?: 'trap';
+  },
+  callbacks?: FetchRunCallbacks,
+): Promise<RunResponse> {
   // ── MOCK MODE (offline / no engine) ───────────────────────────────────────
   if (MODE === 'mock') {
     console.log('[DataSource] MOCK MODE: Generating dynamic mock data');
@@ -108,15 +121,24 @@ export async function fetchRun(input: {
   // ── LIVE MODE: Murgesh's engine is authoritative ───────────────────────────
   console.log('[DataSource] LIVE MODE: Calling Murgesh\'s Engine at', import.meta.env.VITE_BRAIN_URL);
 
-  // V-1 HARD RULE: NEVER call /run with image: null
+  // V-IH-1 HARD RULE: NEVER call /run with image: null
   const hasImage = input.captureType === 'image' || input.captureType === 'camera' || input.captureType === 'file';
   if (hasImage && !input.captureData) {
-    throw new Error('[DataSource] Blocked: captureType is image/camera/file but captureData is empty. Validate before calling fetchRun.');
+    throw new PramaanError(
+      'Please capture a photo before analysing.',
+      'INVALID_IMAGE',
+      0,
+    );
   }
+
+  const retryOpts = { retries: 3, onRetry: callbacks?.onRetry };
 
   // Deterministic demo seed (GET /run?seed=trap) — byte-identical payload
   if (input.seed) {
-    const raw = await apiClient.get<EngineRunResponse>(`/run?seed=${input.seed}&domain=${input.domain}`);
+    const raw = await apiClient.get<EngineRunResponse>(
+      `/run?seed=${input.seed}&domain=${input.domain}`,
+      retryOpts,
+    );
     return mapEngineResponse(raw);
   }
 
@@ -128,13 +150,15 @@ export async function fetchRun(input: {
     body.text = input.captureData ?? undefined;
   }
 
-  const raw = await apiClient.post<EngineRunResponse>('/run', body);
+  // V-IH-5: /run retries up to 3×; /consent does NOT retry
+  const raw = await apiClient.post<EngineRunResponse>('/run', body, retryOpts);
   return mapEngineResponse(raw);
 }
 
+// V-IH-5: /consent is NEVER retried — idempotency risk
 export async function consent(
   runId: string,
-  action: 'confirm_hold' | 'withdraw_hold' | 'send_letter'
+  action: 'confirm_hold' | 'withdraw_hold' | 'send_letter',
 ): Promise<{ audit: AuditEvent }> {
   if (MODE === 'mock') {
     await new Promise((r) => setTimeout(r, 400));
@@ -144,9 +168,9 @@ export async function consent(
   console.log('[DataSource] POST /consent', { run_id: runId, action });
   const raw = await apiClient.post<{ audit: { id: string; ts: string; t: string; payload: string } }>(
     '/consent',
-    { run_id: runId, action }
+    { run_id: runId, action },
+    { retries: 1 },   // retries:1 = single attempt, no retry
   );
-  // Map ISO ts string → Date
   return {
     audit: {
       id: raw.audit.id,
@@ -157,7 +181,15 @@ export async function consent(
   };
 }
 
-export async function fetchAudit(runId: string): Promise<AuditEvent[]> {
+interface FetchAuditCallbacks {
+  onRetry?: (attempt: number) => void;
+}
+
+// V-IH-5: /audit retries up to 3×
+export async function fetchAudit(
+  runId: string,
+  callbacks?: FetchAuditCallbacks,
+): Promise<AuditEvent[]> {
   if (MODE === 'mock') {
     console.log('[DataSource] MOCK fetchAudit — no-op');
     return [];
@@ -165,7 +197,8 @@ export async function fetchAudit(runId: string): Promise<AuditEvent[]> {
 
   console.log('[DataSource] GET /audit/', runId);
   const raw = await apiClient.get<Array<{ id: string; ts: string; t: string; payload: string }>>(
-    `/audit/${runId}`
+    `/audit/${runId}`,
+    { retries: 3, onRetry: callbacks?.onRetry },
   );
-  return raw.map(a => ({ id: a.id, ts: new Date(a.ts), t: a.t, payload: a.payload }));
+  return (raw ?? []).map(a => ({ id: a.id, ts: new Date(a.ts), t: a.t, payload: a.payload }));
 }
