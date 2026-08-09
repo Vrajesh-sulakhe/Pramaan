@@ -5,5 +5,8 @@
     "apps/*",
     "packages/*",
     "services/*"
-  ]
+  ],
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
 }
