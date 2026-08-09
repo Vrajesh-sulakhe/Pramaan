@@ -35,17 +35,17 @@ export async function draft(
     let aiDraft = templateContent;
 
     aiDraft = aiDraft
-      .replace(/{{official_value}}/g, String(first?.official_value ?? "18,000"))
-      .replace(/{{your_value}}/g, String(first?.your_value ?? "45,000"))
-      .replace(/{{gap_amount}}/g, String(first?.gap ?? "27,000"))
+      .replace(/{{official_value}}/g, String(first?.official_value ?? ""))
+      .replace(/{{your_value}}/g, String(first?.your_value ?? ""))
+      .replace(/{{gap_amount}}/g, String(first?.gap ?? ""))
       .replace(/{{invoice_id}}/g, String(first?.rule_anchor?.url ?? "INV-001"))
-      .replace(/{{bill_date}}/g, String(first?.bill_date ?? "Aug 8, 2026"))
-      .replace(/{{user_name}}/g, String(first?.user_name ?? "Ajit"))
-      .replace(/{{hospital_name}}/g, String(first?.hospital_name ?? "City Hospital"))
+      .replace(/{{bill_date}}/g, new Date().toLocaleDateString())
+      .replace(/{{user_name}}/g, "")
+      .replace(/{{hospital_name}}/g, "")
       .replace(/{{current_date}}/g, new Date().toLocaleDateString())
-      .replace(/{{item_category}}/g, String(first?.item_category ?? "Bed Charges"))
-      .replace(/{{official_source}}/g, String(first?.official_source ?? "CGHS Rate Card 2024"))
-      .replace(/{{rule_says_plain}}/g, String(first?.rule_says_plain ?? "Maximum allowed charge is ₹18,000."));
+      .replace(/{{item_category}}/g, String(first?.item ?? ""))
+      .replace(/{{official_source}}/g, String(first?.rule_anchor?.ref ?? ""))
+      .replace(/{{rule_says_plain}}/g, String(first?.rule_says_plain ?? ""));
 
     if (gapCards.length > 0) {
       const items = gapCards
@@ -105,5 +105,4 @@ function templateFillStub(
     text,
     banner: "AI-generated — review before sending",
   };
-}
 }

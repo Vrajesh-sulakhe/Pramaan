@@ -3,17 +3,19 @@
 import { applyConfidenceGate } from "../confidence.js";
 export async function read(req) {
     // ═══════════════ AJIT SEAM — START ═══════════════
-    // TODO(ajit): replace this stub body with the real OCR/vision call.
+    // TODO(ajit): replace this stub body with the real OCR/Docling call.
     // Contract: signature, types, and orchestrator wiring are Murgesh's.
     // Replace ONLY the body between the seam markers. Nothing else.
     //
     // RULES FOR YOUR BODY:
     //   1. Report numbers EXACTLY as read — never "fix" a shaky value.
-    //      The confidence gate decides what to do with low-conf fields.
     //   2. Call applyConfidenceGate(fields) before returning (already imported).
     //      Do NOT reimplement the 0.90 threshold. One gate, one threshold.
     //   3. On blank/unreadable input, return []. Never throw.
     //   4. Docling for PDFs, Tesseract fallback for plain images.
+    //   5. Dynamic-import your OCR dep inside this seam zone so the trunk
+    //      compiles and starts without it installed:
+    //        const { createWorker } = await import('tesseract.js');
     //
     // The req.image field is either a base64 string or a file path to a PDF.
     void req; // suppress unused warning in stub
