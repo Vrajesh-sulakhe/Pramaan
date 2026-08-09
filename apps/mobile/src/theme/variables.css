@@ -1,2 +1,161 @@
-/* For information on how to create your own theme, please refer to:
-http://ionicframework.com/docs/theming/ */
+/* Liquid Glass UI Base Theme for Pramaan */
+
+:root {
+  /* Safe area for notched devices */
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+
+  /* Light mode (default for hospital/clinical context) */
+  --glass-bg: rgba(255, 255, 255, 0.25);
+  --glass-highlight: rgba(255, 255, 255, 0.75);
+  --glass-text: #1a1a1a;
+  --glass-border: rgba(255, 255, 255, 0.3);
+  
+  /* Semantic colors for proof cards */
+  --proof-gap: rgba(239, 68, 68, 0.9);      /* red-500 with glass opacity */
+  --proof-ok: rgba(34, 197, 94, 0.9);         /* green-500 */
+  --proof-unverified: rgba(156, 163, 175, 0.9); /* gray-400 */
+  --proof-yellow: rgba(250, 204, 21, 0.9);    /* yellow-400 for low-confidence */
+  
+  /* Hold chip states */
+  --hold-staged: rgba(251, 146, 60, 0.9);     /* orange-400 */
+  --hold-placed: rgba(34, 197, 94, 0.9);      /* green-500 */
+  --hold-released: rgba(156, 163, 175, 0.7);  /* gray-400 */
+  
+  /* Shadows */
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.18);
+  
+  /* Animation */
+  --ease-liquid: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-instant: 0.15s;
+  --duration-fast: 0.2s;
+  --duration-normal: 0.3s;
+  --duration-slow: 0.5s;
+}
+
+/* Dark mode (for lease/nighttime use) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glass-bg: rgba(0, 0, 0, 0.25);
+    --glass-highlight: rgba(255, 255, 255, 0.15);
+    --glass-text: #ffffff;
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Base Glass Elements */
+.glass-filter,
+.glass-overlay,
+.glass-specular {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.glass-filter {
+  z-index: 1;
+  backdrop-filter: blur(4px) saturate(120%);
+  filter: url(#glass-distortion) brightness(1.15);
+}
+
+.glass-overlay {
+  z-index: 2;
+  background: var(--glass-bg);
+}
+
+.glass-specular {
+  z-index: 3;
+  box-shadow: inset 1px 1px 1px var(--glass-highlight);
+  pointer-events: none; /* Don't block clicks */
+}
+
+.glass-content {
+  position: relative;
+  z-index: 4;
+  color: var(--glass-text);
+  font-family: 'Inter', sans-serif;
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.glass-button:focus-visible,
+.glass-toggle:focus-visible {
+  outline: 2px solid var(--glass-highlight);
+  outline-offset: 2px;
+}
+
+/* Global Layout Utilities */
+.app-container {
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  font-family: 'Inter', sans-serif;
+  color: var(--glass-text);
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background-color: #000; /* Fallback */
+}
+
+/* Stunning Animated Mesh Gradient Background */
+.app-container::before {
+  content: '';
+  position: fixed;
+  inset: -50%;
+  z-index: -1;
+  background: 
+    radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.4) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(168, 85, 247, 0.4) 0%, transparent 50%),
+    radial-gradient(circle at 20% 80%, rgba(236, 72, 153, 0.4) 0%, transparent 50%);
+  background-size: 200% 200%;
+  animation: mesh-movement 15s ease-in-out infinite alternate;
+  filter: blur(60px);
+}
+
+@keyframes mesh-movement {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.1); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@media (prefers-color-scheme: light) {
+  .app-container::before {
+    background: 
+      radial-gradient(circle at 50% 50%, rgba(191, 219, 254, 0.6) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, rgba(233, 213, 255, 0.6) 0%, transparent 50%),
+      radial-gradient(circle at 20% 80%, rgba(252, 165, 165, 0.6) 0%, transparent 50%);
+  }
+  .app-container {
+    background-color: #f8fafc;
+  }
+}
+
+.proof-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* Increased gap */
+  padding: 24px; /* Increased padding */
+  padding-bottom: 250px; /* Space for action bar */
+}
+
+.action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20px; /* Increased padding */
+  padding-bottom: calc(20px + var(--safe-bottom));
+  background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 16px; /* Increased gap */
+}
