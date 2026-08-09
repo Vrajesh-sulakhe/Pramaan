@@ -1,3 +1,6 @@
+// IBM: Granite — plain-language letter generation (Ajit)
+// Built with IBM Bob — AI SDLC Partner
+
 import type { ProofCard, HoldEvent, Draft } from "@pramaan/contracts";
 import fs from "fs";
 import path from "path";
@@ -8,65 +11,88 @@ export async function draft(
   template: string
 ): Promise<Draft> {
   // ═══════════════ AJIT SEAM — START ═══════════════
-  // Attempt an AI-driven fill (Granite) but fall back to deterministic
-  // template-fill. Banner must always be the required string.
-
   const AI_BANNER = "AI-generated — review before sending";
 
-  // Load template: prefer provided template, else try file, else default
-  let templateContent = template || "";
-  if (!templateContent) {
-    try {
-      const templatePath = path.resolve(__dirname, "../../../../../packages/templates/bill_complaint.txt");
-      templateContent = fs.readFileSync(templatePath, "utf8");
-    } catch (err) {
-      templateContent = "To Whom It May Concern,\n\nI am writing to dispute the following charges on my medical bill:\n\n{{ITEMS}}\n\nKindly review and issue a corrected bill.\n\nYours sincerely.";
-    }
-  }
-
-  // Prepare gap card data for template replacement
-  const gapCards = cards.filter((c) => c.status === "gap");
-  const first = gapCards[0] ?? null;
-
-  // Try to call Granite (simulated here); on any failure fall back
   try {
-    // A real Granite call would go here using env WATSONX_* values.
-    // Simulate AI by filling template variables from the gap cards
-    let aiDraft = templateContent;
-
-    aiDraft = aiDraft
-      .replace(/{{official_value}}/g, String(first?.official_value ?? "18,000"))
-      .replace(/{{your_value}}/g, String(first?.your_value ?? "45,000"))
-      .replace(/{{gap_amount}}/g, String(first?.gap ?? "27,000"))
-      .replace(/{{invoice_id}}/g, String(first?.rule_anchor?.url ?? "INV-001"))
-      .replace(/{{bill_date}}/g, String(first?.bill_date ?? "Aug 8, 2026"))
-      .replace(/{{user_name}}/g, String(first?.user_name ?? "Ajit"))
-      .replace(/{{hospital_name}}/g, String(first?.hospital_name ?? "City Hospital"))
-      .replace(/{{current_date}}/g, new Date().toLocaleDateString())
-      .replace(/{{item_category}}/g, String(first?.item_category ?? "Bed Charges"))
-      .replace(/{{official_source}}/g, String(first?.official_source ?? "CGHS Rate Card 2024"))
-      .replace(/{{rule_says_plain}}/g, String(first?.rule_says_plain ?? "Maximum allowed charge is ₹18,000."));
-
-    if (gapCards.length > 0) {
-      const items = gapCards
-        .map(
-          (c) => `- ${c.item}: charged ₹${c.your_value} vs official ₹${c.official_value} (gap: ₹${c.gap}). ${c.rule_says_plain}`
-        )
-        .join("\n");
-      aiDraft = aiDraft.replace("{{ITEMS}}", items);
+    // Only gap cards belong in a dispute letter
+    const gapCards = cards.filter((c) => c.status === "gap");
+    if (gapCards.length === 0) {
+      return templateFillStub(cards, hold, template);
     }
 
-    if (hold !== null) {
-      aiDraft += `\n\nNote: A provisional hold of ₹${hold.amount} has been placed on invoice ${hold.invoice_id}, set to auto-release in 72 hours unless confirmed (hold ID: ${hold.hold_id}).`;
+    // Verify required env vars are present — fall back gracefully if not
+    const apiKey = process.env["WATSONX_API_KEY"];
+    const projectId = process.env["WATSONX_PROJECT_ID"];
+    const serviceUrl =
+      process.env["WATSONX_URL"] ?? "https://us-south.ml.cloud.ibm.com";
+
+    if (!apiKey || !projectId) {
+      console.warn("[06_draft] WATSONX env vars missing — using fallback.");
+      return templateFillStub(cards, hold, template);
     }
 
-    return {
-      text: aiDraft,
-      banner: AI_BANNER,
-    };
+    // Build a grounded prompt from gap card data only — no hallucination surface
+    const cardSummaries = gapCards
+      .map(
+        (c) =>
+          `Item: ${c.item} | Charged: ₹${c.your_value} | Official: ₹${c.official_value} | Gap: ₹${c.gap} | Rule: ${c.rule_says_plain}`
+      )
+      .join("\n");
+
+    const holdLine =
+      hold !== null
+        ? `A provisional dispute hold of ₹${hold.amount} has been placed on invoice ${hold.invoice_id}. It auto-releases in 72 hours unless confirmed (hold ID: ${hold.hold_id}).`
+        : "No hold has been placed.";
+
+    const prompt = `You are a formal complaint letter writer. Using ONLY the data provided below, write a professional dispute letter. Do NOT invent any numbers, names, dates, or items not listed below.
+
+DISPUTED ITEMS:
+${cardSummaries}
+
+HOLD STATUS:
+${holdLine}
+
+TEMPLATE TO FILL:
+${template}
+
+Write the letter now using only the data above.`;
+
+    // Dynamic imports — trunk compiles without these deps installed
+    const { WatsonXAI } = await import("@ibm-cloud/watsonx-ai");
+    const { IamAuthenticator } = await import("ibm-cloud-sdk-core");
+
+    const service = WatsonXAI.newInstance({
+      authenticator: new IamAuthenticator({ apikey: apiKey }),
+      serviceUrl,
+      version: "2023-05-29",
+    });
+
+    // Race Granite against a 10-second timeout
+    const graniteText = await Promise.race([
+      service
+        .generateText({
+          modelId: "ibm/granite-3-8b-instruct",
+          projectId,
+          input: prompt,
+          parameters: { max_new_tokens: 800, temperature: 0.2 },
+        })
+        .then((r) => r.result?.results?.[0]?.generated_text ?? ""),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Granite timeout")), 10_000)
+      ),
+    ]);
+
+    // Empty or whitespace output → fall back rather than send a blank letter
+    if (!graniteText || graniteText.trim().length === 0) {
+      console.warn("[06_draft] Granite returned empty output — using fallback.");
+      return templateFillStub(cards, hold, template);
+    }
+
+    // Banner is a system label — never part of the generated content
+    return { text: graniteText.trim(), banner: AI_BANNER };
   } catch (err) {
-    // Fallback to deterministic template-fill stub
-    return templateFillStub(cards, hold, templateContent);
+    console.error("[06_draft] Granite failed, using fallback:", err);
+    return templateFillStub(cards, hold, template);
   }
   // ═══════════════ AJIT SEAM — END ══════════════════
 }
@@ -105,5 +131,4 @@ function templateFillStub(
     text,
     banner: "AI-generated — review before sending",
   };
-}
 }

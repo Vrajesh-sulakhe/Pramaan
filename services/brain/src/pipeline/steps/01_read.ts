@@ -1,81 +1,76 @@
+// IBM: Docling — PDF/image structured extraction (Ajit)
+// Built with IBM Bob — AI SDLC Partner
+
 import type { RunRequest, ExtractedField } from "@pramaan/contracts";
 import { applyConfidenceGate } from "../confidence.js";
-import { createWorker } from "tesseract.js";
 
 export async function read(req: RunRequest): Promise<ExtractedField[]> {
   // ═══════════════ AJIT SEAM — START ═══════════════
-  // This implementation uses tesseract.js to produce ExtractedField[] that
-  // conforms to the contract. On blank/unreadable input returns [] and
-  // always calls applyConfidenceGate(fields) before returning.
-  // NOTE: Do not re-implement the 0.90 threshold — applyConfidenceGate handles it.
-
   try {
-    const imageInput = req.image;
-    if (!imageInput) return [];
+    // Guard: reject empty / missing input immediately
+    if (!req.image || req.image.trim() === "") return [];
 
-    // Accept either a Buffer (binary) or a base64 string
-    let buffer: Buffer;
-    if (typeof imageInput === "string") {
-      // base64 data URL or path — attempt to detect base64
-      const maybeBase64 = imageInput.trim();
-      if (/^data:/.test(maybeBase64) || /^[A-Za-z0-9+/]+=*$/.test(maybeBase64.replace(/^data:.*;base64,/, ""))) {
-        const b64 = maybeBase64.replace(/^data:.*;base64,/, "");
-        buffer = Buffer.from(b64, "base64");
-      } else {
-        // treat as file path
-        try {
-          buffer = await import("fs").then((m) => m.promises.readFile(imageInput));
-        } catch (err) {
-          // unreadable path -> graceful empty
-          console.warn("read(): could not read image path, returning [].", err);
-          return [];
+    // Dynamic import — trunk compiles without this dep installed
+    const { createWorker } = await import("tesseract.js");
+
+    const worker = await createWorker("eng");
+    const { data } = await worker.recognize(req.image);
+    await worker.terminate();
+
+    const rawFields: ExtractedField[] = [];
+
+    // Tesseract Page → blocks → paragraphs → lines
+    for (const block of data.blocks ?? []) {
+      for (const para of block.paragraphs) {
+        for (const line of para.lines) {
+          const text = line.text?.trim() ?? "";
+          if (!text) continue;
+
+          // Extract first numeric token exactly as read — never round or correct
+          const numMatch = text.match(/[\d,]+\.?\d*/);
+          const value = numMatch
+            ? parseFloat(numMatch[0].replace(/,/g, ""))
+            : null;
+
+          // Heuristic unit detection — must be one of the allowed values or null
+          let unit: ExtractedField["unit"] = null;
+          const lower = text.toLowerCase();
+          if (lower.includes("per tablet") || lower.includes("/tab"))
+            unit = "per tablet";
+          else if (lower.includes("per scan") || lower.includes("/scan"))
+            unit = "per scan";
+          else if (lower.includes("per day") || lower.includes("/day"))
+            unit = "per day";
+          else if (
+            lower.includes("per procedure") ||
+            lower.includes("/procedure")
+          )
+            unit = "per procedure";
+          else if (lower.includes("total") || lower.includes("grand total"))
+            unit = "total";
+
+          rawFields.push({
+            text,
+            value,
+            unit,
+            bbox: [
+              line.bbox.x0,
+              line.bbox.y0,
+              line.bbox.x1 - line.bbox.x0,
+              line.bbox.y1 - line.bbox.y0,
+            ],
+            // Tesseract reports confidence 0-100; normalise to 0.0-1.0
+            confidence: line.confidence != null ? line.confidence / 100 : 0,
+            low_conf: false, // applyConfidenceGate will set this correctly
+          });
         }
       }
-    } else if (Buffer.isBuffer(imageInput)) {
-      buffer = imageInput as Buffer;
-    } else {
-      return [];
     }
 
-    if (!buffer || buffer.length === 0) return [];
-
-    const worker = createWorker();
-    await worker.load();
-    await worker.loadLanguage("eng");
-    await worker.initialize("eng");
-
-    try {
-      const { data } = await worker.recognize(buffer as any);
-      const fields: ExtractedField[] = [];
-
-      (data.lines || []).forEach((line: any, idx: number) => {
-        const conf = typeof line.confidence === "number" ? line.confidence / 100.0 : 0;
-        const bbox = line.bbox
-          ? [line.bbox.x0, line.bbox.y0, line.bbox.x1, line.bbox.y1]
-          : [0, 0, 0, 0];
-
-        // Start with low_conf false; applyConfidenceGate will set correct flags
-        fields.push({
-          text: (line.text || "").trim(),
-          value: (line.text || "").trim(),
-          unit: null,
-          bbox,
-          confidence: conf,
-          low_conf: false
-        } as ExtractedField);
-      });
-
-      return applyConfidenceGate(fields);
-    } catch (err) {
-      console.error("OCR Pipeline Crashed. Returning empty array.", err);
-      return [];
-    } finally {
-      await worker.terminate();
-    }
+    return applyConfidenceGate(rawFields);
   } catch (err) {
-    console.error("read(): unexpected error, returning [].", err);
+    console.error("[01_read] OCR failed:", err);
     return [];
   }
   // ═══════════════ AJIT SEAM — END ══════════════════
-}
 }

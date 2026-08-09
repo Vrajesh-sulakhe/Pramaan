@@ -131,12 +131,21 @@ app.post("/consent", (req: Request, res: Response, next: NextFunction) => {
       return;
     }
 
-    if (action === "confirm_hold") {
-      billingGateway.confirm(hold_id);
-    } else if (action === "withdraw_hold") {
-      billingGateway.release(hold_id, "user_withdraw");
+    try {
+      if (action === "confirm_hold") {
+        billingGateway.confirm(hold_id);
+      } else if (action === "withdraw_hold") {
+        billingGateway.release(hold_id, "user_withdraw");
+      }
+      // send_letter: no gateway mutation, just audit
+    } catch (gatewayErr) {
+      const msg = gatewayErr instanceof Error ? gatewayErr.message : String(gatewayErr);
+      if (msg.startsWith("Hold not found")) {
+        res.status(404).json({ error: msg });
+        return;
+      }
+      throw gatewayErr;
     }
-    // send_letter: no gateway mutation, just audit
 
     const event = {
       t: "consent" as const,
