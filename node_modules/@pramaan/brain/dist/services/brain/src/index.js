@@ -9,7 +9,9 @@ import { prove } from "./pipeline/steps/04_prove.js";
 import { SEED_TRAP_FIELDS, FIXED_HOLD, FIXED_DRAFT, FIXED_RUN_ID, FIXED_AUDIT_TIMESTAMPS, } from "./seeds/trap.js";
 import { CONTROL_SEED_FIELDS, FIXED_CONTROL_RUN_ID } from "./seeds/control.js";
 const app = express();
-app.use(express.json());
+// Raise body limit to 10 MB to accommodate base64-encoded bill images (typ. 1–3 MB).
+// Without this, large images return a cryptic 413 from Express before our validation.
+app.use(express.json({ limit: "10mb" }));
 const PORT = parseInt(process.env["BRAIN_PORT"] ?? "3000", 10);
 // ── GET /health ──────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {

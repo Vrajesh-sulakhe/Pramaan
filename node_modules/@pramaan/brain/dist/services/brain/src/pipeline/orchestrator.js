@@ -7,7 +7,8 @@ import { compare } from "./steps/03_compare.js";
 import { prove } from "./steps/04_prove.js";
 import { act } from "./steps/05_act.js";
 import { draft } from "./steps/06_draft.js";
-const STEP_TIMEOUT_MS = 10_000;
+// Raised from 10s → 15s to accommodate Ajit's real OCR (large images) + Granite latency
+const STEP_TIMEOUT_MS = 15_000;
 /** Wraps a promise with a timeout. Rejects if the step takes longer than timeoutMs. */
 function withTimeout(promise, timeoutMs, stepName) {
     return Promise.race([

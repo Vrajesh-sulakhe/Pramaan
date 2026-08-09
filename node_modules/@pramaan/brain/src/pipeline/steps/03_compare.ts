@@ -6,20 +6,67 @@ import type { ExtractedField, RuleRow, CompareResult } from "@pramaan/contracts"
 const TOLERANCE = 0;
 
 /**
- * Normalize a value to a base unit.
- * Returns null if the unit combination cannot be normalized (triggers "unverified").
+ * Unit alias map — normalise raw OCR unit strings to canonical forms before lookup.
+ * Keys are lowercase. Add entries here when Ajit's OCR emits a new unit variant.
+ * NEVER change the canonical values ("per tablet", "per strip", etc.) — the
+ * normalizeToBaseUnit function and the rulebook stubs use those strings.
+ */
+const UNIT_ALIASES: Record<string, string> = {
+  // tablet variants
+  "tab":          "per tablet",
+  "tabs":         "per tablet",
+  "tablet":       "per tablet",
+  "tablets":      "per tablet",
+  "per tab":      "per tablet",
+  "per tabs":     "per tablet",
+  // strip variants
+  "strip":        "per strip",
+  "strips":       "per strip",
+  // scan / procedure
+  "scan":         "per scan",
+  "per procedure":"per procedure",
+  "procedure":    "per procedure",
+  // day
+  "day":          "per day",
+  "daily":        "per day",
+  "/day":         "per day",
+  // test / pathology
+  "test":         "per test",
+  "per report":   "per test",
+  // ml variants
+  "ml":           "per ml",
+  "per ml":       "per ml",
+  "/ml":          "per ml",
+  "per 100ml":    "per 100ml",
+  "/100ml":       "per 100ml",
+  "100ml":        "per 100ml",
+};
+
+/** Resolve a raw unit string through the alias map. Returns the canonical string or the original. */
+function resolveUnit(raw: string): string {
+  const key = raw.toLowerCase().trim();
+  return UNIT_ALIASES[key] ?? key;
+}
+
+/**
+ * Normalize a canonical unit+value to the shared base unit for comparison.
+ * Returns null if units cannot be safely compared (triggers "unverified").
  *
- * Rules:
- *   "per tablet"  → identity (base unit)
- *   "per strip"   → divide by 10 (10 tablets per strip)
- *   "per scan"    → identity
- *   "per test"    → identity
- *   unknown       → null (unverified)
+ * Base units:
+ *   medications  → per tablet  (per strip ÷ 10)
+ *   radiology    → per scan    (identity)
+ *   pathology    → per test    (identity)
+ *   ward/nursing → per day     (identity)
+ *   liquids      → per ml      (per 100ml ÷ 100)
+ *   procedures   → per procedure (identity)
+ *   unknown      → null        → "unverified"
  */
 function normalizeToBaseUnit(value: number, unit: string): number | null {
-  const u = unit.toLowerCase().trim();
-  if (u === "per tablet" || u === "per scan" || u === "per test") return value;
-  if (u === "per strip") return value / 10;
+  const u = resolveUnit(unit);
+  if (u === "per tablet" || u === "per scan" || u === "per test" || u === "per day" || u === "per procedure") return value;
+  if (u === "per strip")  return value / 10;
+  if (u === "per ml")     return value;
+  if (u === "per 100ml")  return value / 100;
   // Unknown unit — cannot safely compare
   return null;
 }

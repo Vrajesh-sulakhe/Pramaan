@@ -212,5 +212,110 @@ Zero errors expected before and after your changes.
 
 ---
 
+## Live Integration Notes (2026-08-09)
+
+> Added after Ajit's Phase 1 PR merged. Engine hardened for real OCR output.
+
+### Canonical field names you must emit from `01_read.ts`
+
+Every object in the array you return **must have these exact field names** — the contract is frozen:
+
+| Field | Type | Notes |
+|---|---|---|
+| `text` | `string` | Raw line text exactly as read. Never correct or truncate. |
+| `value` | `number \| null` | First numeric token parsed from the line. `null` if no number found. |
+| `unit` | `string \| null` | Unit string or `null`. See recognised units below. |
+| `bbox` | `[number,number,number,number]` | `[x, y, width, height]` in pixels. `x1-x0`, `y1-y0` from Tesseract bbox. |
+| `confidence` | `number` | OCR confidence **0.0–1.0**. Tesseract gives 0–100 — divide by 100. |
+| `low_conf` | `boolean` | Always set to `false` in your object — `applyConfidenceGate` sets the real value. |
+
+**Never use alternative names** (`conf`, `box`, `score`, `bounding_box`, etc.). TypeScript will catch it at compile time.
+
+### Unit strings the engine recognises
+
+The engine's unit normaliser (step 03 COMPARE) maps these to base units automatically:
+
+| String Ajit emits | Engine normalises to | Arithmetic |
+|---|---|---|
+| `"per tablet"`, `"tablet"`, `"tablets"`, `"tab"`, `"tabs"`, `"per tab"` | `per tablet` | identity |
+| `"per strip"`, `"strip"`, `"strips"` | `per strip` | ÷ 10 (10 tablets/strip) |
+| `"per scan"`, `"scan"` | `per scan` | identity |
+| `"per test"`, `"test"`, `"per report"` | `per test` | identity |
+| `"per day"`, `"day"`, `"daily"`, `"/day"` | `per day` | identity |
+| `"per procedure"`, `"procedure"` | `per procedure` | identity |
+| `"per ml"`, `"ml"`, `"/ml"` | `per ml` | identity |
+| `"per 100ml"`, `"100ml"`, `"/100ml"` | `per 100ml` | ÷ 100 |
+| anything else or `null` | (unrecognised) | field → `"unverified"` — safe, no false alarm |
+
+If you emit `"tab"` the engine correctly maps it to `"per tablet"`. If you emit a novel unit, add it to the `UNIT_ALIASES` table in `services/brain/src/pipeline/steps/03_compare.ts` — that is Murgesh's file, raise a PR comment.
+
+### What happens to different field shapes
+
+| Field state | Engine behaviour |
+|---|---|
+| `value: null` | step 03 COMPARE → status `"unverified"`. Safe. |
+| `unit: null` | step 03 COMPARE → field assumed to match rule's base unit. If unit-safe, compared; else `"unverified"`. |
+| `text: ""` or whitespace | step 02 LOOKUP skips silently. Field never reaches COMPARE. |
+| `confidence < 0.90` | `applyConfidenceGate` sets `low_conf: true`. Step 05 ACT uses this to STAGE the hold (not PLACE). |
+| No matching rule | COMPARE skips silently. Silence over false alarm. |
+| Multiple rules match | First match used. LOOKUP returns all; engine takes `matches[0]`. |
+
+### Fuzzy OCR text — lookup is now two-pass
+
+The lookup engine (step 02 LOOKUP) now tokenises your OCR text and strips noise tokens before matching:
+
+- **Pass 1:** Standard substring: `"Paracetamol 500mg x30"` → contains `"paracetamol"` → match ✅
+- **Pass 2:** Token match: `"Crocin Tab 650mg"` → tokens: `["crocin", "650"]` → `"crocin"` is a match_term → match ✅
+- **Noise stripped:** `mg`, `ml`, `x30`, `tab`, `caps`, `inj`, `amp`, `no.`, etc. — these never prevent a match.
+
+You do **not** need to clean your text before returning it. Return it exactly as Tesseract gives it.
+
+### The one rule that never changes
+
+```typescript
+return applyConfidenceGate(rawFields);  // ← always the last line before return
+```
+
+This is the only confidence gate in the codebase. Do not write `if (confidence < 0.9)` anywhere. Do not set `low_conf` manually. `applyConfidenceGate` does it correctly from the single source of truth in `confidence.ts`.
+
+### What you must NEVER do (updated checklist)
+
+| Action | Consequence |
+|---|---|
+| Change function signature of `read()` or `draft()` | Orchestrator breaks immediately |
+| Add top-level `import` outside the seam zone | Trunk fails to start on machines without your dep |
+| Set `low_conf: true` manually for any field | Creates a second confidence gate — drift between OCR and hold logic |
+| Call `applyConfidenceGate` more than once | Double-gates — fields marked low-conf that should be high-conf |
+| Output `banner: undefined` or omit `banner` | Mobile UI crashes — always `"AI-generated — review before sending"` |
+| Output a number in `draft.text` not present in `cards` | Hallucinated overcharge — discard Granite output and fall back |
+| Modify `orchestrator.ts`, `confidence.ts`, `03_compare.ts`, `05_act.ts` | You are not the owner — raise a PR comment to Murgesh |
+
+### How to test after your next hardening pass
+
+```bash
+# 1. Compile check (always first)
+cd services/brain && npx tsc --noEmit
+
+# 2. Start server
+npm run dev
+
+# 3. Real image test — replace path with your sample bill
+curl -s -X POST http://localhost:3000/run \
+  -H "Content-Type: application/json" \
+  -d "{\"image\":\"$(base64 -w0 /path/to/bill.png)\",\"domain\":\"bill\"}" | jq .
+
+# 4. Check extracted_fields — should contain real OCR lines, not the 3 stub objects
+# 5. Check draft.text — should be Granite output, not templateFillStub
+# 6. Check hold — null (clean), staged (low-conf gap), or placed (high-conf gap)
+
+# 7. Seed regression — must stay byte-identical
+curl -s http://localhost:3000/run?seed=trap > a.json
+curl -s http://localhost:3000/run?seed=trap > b.json
+diff a.json b.json  # must be empty
+```
+
+---
+
+*Updated 2026-08-09 — engine hardened for real OCR output (M-P1 through M-P6).*
 *Built with IBM Bob — AI SDLC Partner.*
 *Pramaan · HackVerse Track 3 · One engine. Proof, not opinions.*
