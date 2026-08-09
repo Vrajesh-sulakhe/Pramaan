@@ -17,9 +17,9 @@ import {
 import { CONTROL_SEED_FIELDS, FIXED_CONTROL_RUN_ID } from "./seeds/control.js";
 
 const app = express();
-// Raise body limit to 10 MB to accommodate base64-encoded bill images (typ. 1–3 MB).
+// Raise body limit to 50 MB to accommodate base64-encoded bill images (typ. 1–3 MB, up to 10MB+ from mobile cameras).
 // Without this, large images return a cryptic 413 from Express before our validation.
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "50mb" }));
 
 const PORT = parseInt(process.env["BRAIN_PORT"] ?? "3000", 10);
 
