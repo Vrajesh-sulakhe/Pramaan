@@ -1,56 +1,63 @@
 /* ============================================
-   PRAMAAN — Refined Neutral Dark Design System
-   Calm, balanced, eye-friendly, everyday utility aesthetic
+   PRAMAAN — S-Tier Obsidian Glass Design System
+   Crafted for maximum visual depth, clarity, and tactile elegance
    ============================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
 :root {
-  /* Safe areas */
+  /* Safe area insets */
   --sat: env(safe-area-inset-top, 24px);
   --sab: env(safe-area-inset-bottom, 24px);
 
-  /* Deep Neutral Pitch Black Base */
-  --c-bg:        #000000;
-  --c-surface-1: #111113;
-  --c-surface-2: #19191d;
-  --c-surface-3: #26262b;
+  /* Deep Smoked Obsidian Surfaces */
+  --c-bg:          #050508;
+  --c-surface-1:   #0e0e14;
+  --c-surface-2:   #15151f;
+  --c-surface-3:   #1e1e2c;
 
-  /* Subtle 1px Neutral Borders */
-  --c-border:    rgba(255, 255, 255, 0.08);
-  --c-border-md: rgba(255, 255, 255, 0.14);
-  --c-border-focus: rgba(255, 255, 255, 0.35);
+  /* Specular Glass Materials */
+  --glass-bg:      linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.015) 100%);
+  --glass-bg-sub:  linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.008) 100%);
+  --glass-border:  1px solid rgba(255, 255, 255, 0.10);
+  --glass-border-sub: 1px solid rgba(255, 255, 255, 0.06);
+  --glass-border-glow: 1px solid rgba(255, 255, 255, 0.25);
+  --glass-shadow:  0 20px 40px -15px rgba(0, 0, 0, 0.85), inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+  --glass-shadow-sm: 0 10px 24px -8px rgba(0, 0, 0, 0.65), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
 
-  /* Calm, Balanced Everyday Typography */
-  --c-text-1: #f4f4f5; /* Clean Off-White */
-  --c-text-2: #a1a1aa; /* Neutral Zinc */
-  --c-text-3: #71717a; /* Muted Zinc */
+  /* High-Contrast Typography */
+  --c-text-1: #ffffff;
+  --c-text-2: #d1d5db;
+  --c-text-3: #9ca3af;
+  --c-text-4: #6b7280;
 
-  /* Neutral Primary Accent (Subtle, Crisp, Non-Neon) */
+  /* Primary Titanium / White Accent */
   --c-accent:       #f4f4f5;
-  --c-accent-hover: #e4e4e7;
-  --c-accent-light: #d4d4d8;
-  --c-accent-bg:    rgba(255, 255, 255, 0.08);
-  --c-accent-border: rgba(255, 255, 255, 0.16);
+  --c-accent-hover: #ffffff;
+  --c-accent-sub:   #a1a1aa;
 
-  /* Soft, Non-Glaring Semantic Tones */
-  --c-danger:        #fb7185; /* Muted Soft Rose */
-  --c-danger-bg:     rgba(251, 113, 133, 0.10);
-  --c-danger-border: rgba(251, 113, 133, 0.25);
+  /* Subtle Semantic Accents (Refined, Non-Saturated) */
+  --c-danger:        #fb7185;
+  --c-danger-glow:   rgba(251, 113, 133, 0.35);
+  --c-danger-bg:     rgba(251, 113, 133, 0.08);
+  --c-danger-border: rgba(251, 113, 133, 0.30);
 
-  --c-success:        #34d399; /* Muted Sage Green */
-  --c-success-bg:     rgba(52, 211, 153, 0.10);
-  --c-success-border: rgba(52, 211, 153, 0.25);
+  --c-success:        #34d399;
+  --c-success-glow:   rgba(52, 211, 153, 0.35);
+  --c-success-bg:     rgba(52, 211, 153, 0.08);
+  --c-success-border: rgba(52, 211, 153, 0.30);
 
-  --c-warn:        #fbbf24; /* Soft Warm Amber */
-  --c-warn-bg:     rgba(251, 191, 36, 0.10);
-  --c-warn-border: rgba(251, 191, 36, 0.25);
+  --c-warn:        #fbbf24;
+  --c-warn-glow:   rgba(251, 191, 36, 0.35);
+  --c-warn-bg:     rgba(251, 191, 36, 0.08);
+  --c-warn-border: rgba(251, 191, 36, 0.30);
 
-  /* Everyday Radius */
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-xl: 20px;
+  /* Radius Tokens */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 26px;
   --r-full: 9999px;
 }
 
@@ -59,39 +66,41 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html, body {
   height: 100%;
   width: 100%;
-  background: #000000 !important;
+  background: var(--c-bg) !important;
   color: var(--c-text-1);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
 }
 
 ion-app, ion-page, ion-content {
-  background: #000000 !important;
-  --background: #000000 !important;
+  background: var(--c-bg) !important;
+  --background: var(--c-bg) !important;
   --color: var(--c-text-1);
 }
 
-/* ── Mobile Container Shell ── */
+/* ── Centered Obsidian Mobile Shell ── */
 .mobile-shell {
   width: 100%;
-  max-width: 480px;
+  max-width: 440px;
   margin: 0 auto;
   min-height: 100vh;
-  background: #000000;
+  background: radial-gradient(ellipse at 50% -5%, rgba(255, 255, 255, 0.04) 0%, transparent 60%), #050508;
   display: flex;
   flex-direction: column;
   position: relative;
   box-sizing: border-box;
-  box-shadow: 0 0 50px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 100px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-@media (max-width: 480px) {
+@media (max-width: 440px) {
   .mobile-shell {
     max-width: 100%;
     box-shadow: none;
@@ -99,13 +108,34 @@ ion-app, ion-page, ion-content {
   }
 }
 
-/* ── Everyday Utility Buttons ── */
+/* ── Glass Cards ── */
+.glass-card {
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: var(--r-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card-sub {
+  background: var(--glass-bg-sub);
+  border: var(--glass-border-sub);
+  box-shadow: var(--glass-shadow-sm);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: var(--r-md);
+}
+
+/* ── S-Tier Buttons ── */
 .btn-primary {
   width: 100%;
-  height: 50px;
+  height: 52px;
   border-radius: var(--r-md);
-  background: #f4f4f5;
-  color: #09090b;
+  background: #ffffff;
+  color: #050508;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.2px;
@@ -115,8 +145,8 @@ ion-app, ion-page, ion-content {
   gap: 8px;
   border: none;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  transition: all 0.15s ease;
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.2), inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   font-family: inherit;
 }
 
@@ -125,12 +155,14 @@ ion-app, ion-page, ion-content {
   background: #e4e4e7;
 }
 
-.btn-secondary {
+.btn-glass {
   width: 100%;
   height: 48px;
   border-radius: var(--r-md);
-  background: var(--c-surface-1);
-  border: 1px solid var(--c-border-md);
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow-sm);
+  backdrop-filter: blur(16px);
   color: var(--c-text-1);
   font-size: 14px;
   font-weight: 600;
@@ -143,7 +175,7 @@ ion-app, ion-page, ion-content {
   font-family: inherit;
 }
 
-.btn-secondary:active {
+.btn-glass:active {
   transform: scale(0.98);
-  background: var(--c-surface-2);
+  background: rgba(255, 255, 255, 0.08);
 }

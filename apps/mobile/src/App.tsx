@@ -8,6 +8,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Capture } from './pages/Capture';
 import { Analyze } from './pages/Analyze';
 import { Results } from './pages/Results';
+import { Vault } from './pages/Vault';
 import { SessionProvider, useSession } from './context/SessionContext';
 
 /* Core CSS required for Ionic components to work properly */
@@ -42,6 +43,9 @@ const RouterConfig: React.FC = () => {
         </Route>
         <Route exact path="/results">
           <Results />
+        </Route>
+        <Route exact path="/vault">
+          <Vault />
         </Route>
         <Route exact path="/">
           <Redirect to={state.isTutorialComplete ? '/dashboard' : '/tutorial'} />

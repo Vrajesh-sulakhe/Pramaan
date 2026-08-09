@@ -45,38 +45,39 @@ export const Analyze: React.FC = () => {
       <IonContent fullscreen scrollX={false}>
         <div className="mobile-shell" style={{ justifyContent: 'space-between', padding: '24px 20px', paddingTop: 'calc(var(--sat) + 20px)', paddingBottom: 'calc(var(--sab) + 20px)' }}>
 
-          {/* Central Progress Ring */}
+          {/* Central Holographic Progress Ring */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginTop: 16 }}>
             <div style={{
-              width: 76,
-              height: 76,
+              width: 84,
+              height: 84,
               borderRadius: '50%',
-              background: 'var(--c-surface-1)',
-              border: '1px solid var(--c-border-md)',
+              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.25)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
-              marginBottom: 16,
+              marginBottom: 18,
             }}>
               <motion.div
-                animate={{ scale: [1, 1.25, 1], opacity: [0.6, 0, 0.6] }}
+                animate={{ scale: [1, 1.25, 1], opacity: [0.8, 0, 0.8] }}
                 transition={{ duration: 1.8, repeat: Infinity }}
                 style={{
                   position: 'absolute',
-                  inset: -4,
+                  inset: -6,
                   borderRadius: '50%',
-                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.4)',
                 }}
               />
-              <Cpu size={32} color="var(--c-text-1)" />
+              <Cpu size={36} color="#ffffff" />
             </div>
 
             <h1 style={{
-              fontSize: 22,
-              fontWeight: 800,
-              letterSpacing: '-0.4px',
-              color: 'var(--c-text-1)',
+              fontSize: 24,
+              fontWeight: 900,
+              letterSpacing: '-0.5px',
+              color: '#ffffff',
               margin: '0 0 6px 0',
             }}>
               Auditing Evidence…
@@ -86,12 +87,14 @@ export const Analyze: React.FC = () => {
             </p>
           </div>
 
-          {/* Stepper Card */}
+          {/* Stepper Obsidian Glass Card */}
           <div style={{
-            background: 'var(--c-surface-1)',
-            border: '1px solid var(--c-border-md)',
-            borderRadius: 16,
-            padding: '10px 14px',
+            background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.015) 100%)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: 18,
+            padding: '12px 16px',
             width: '100%',
             display: 'flex',
             flexDirection: 'column',
@@ -113,30 +116,30 @@ export const Analyze: React.FC = () => {
                     transition: 'all 0.25s ease',
                   }}>
                     <div style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 7,
+                      width: 32,
+                      height: 32,
+                      borderRadius: 9,
                       flexShrink: 0,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      background: isDone ? 'var(--c-success-bg)' : 'var(--c-surface-2)',
-                      border: `1px solid ${isDone ? 'var(--c-success-border)' : 'var(--c-border)'}`,
+                      background: isDone ? 'rgba(52, 211, 153, 0.15)' : isActive ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                      border: `1px solid ${isDone ? 'rgba(52, 211, 153, 0.35)' : isActive ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.08)'}`,
                     }}>
                       <AnimatePresence mode="wait">
                         {isDone ? (
                           <motion.div key="check" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring' }}>
-                            <Check size={14} color="var(--c-success)" strokeWidth={2.5} />
+                            <Check size={16} color="var(--c-success)" strokeWidth={2.6} />
                           </motion.div>
                         ) : isActive ? (
                           <motion.div
                             key="spin"
                             animate={{ rotate: 360 }}
                             transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                            style={{ width: 12, height: 12, borderRadius: '50%', border: '1.5px solid var(--c-text-1)', borderTopColor: 'transparent' }}
+                            style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #ffffff', borderTopColor: 'transparent' }}
                           />
                         ) : (
-                          <StepIcon size={14} color="var(--c-text-3)" />
+                          <StepIcon size={15} color="var(--c-text-3)" />
                         )}
                       </AnimatePresence>
                     </div>
@@ -144,8 +147,8 @@ export const Analyze: React.FC = () => {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
                         fontSize: 13,
-                        fontWeight: 700,
-                        color: isDone || isActive ? 'var(--c-text-1)' : 'var(--c-text-3)',
+                        fontWeight: 800,
+                        color: isDone || isActive ? '#ffffff' : 'var(--c-text-3)',
                       }}>
                         {step.label}
                       </div>
@@ -153,7 +156,7 @@ export const Analyze: React.FC = () => {
                         <motion.div
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}
-                          style={{ fontSize: 11, fontWeight: 500, color: 'var(--c-text-2)', marginTop: 2 }}
+                          style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-text-2)', marginTop: 2 }}
                         >
                           {step.detail}
                         </motion.div>
@@ -161,7 +164,7 @@ export const Analyze: React.FC = () => {
                     </div>
                   </div>
                   {i < steps.length - 1 && (
-                    <div style={{ height: 1, background: 'var(--c-border)', marginLeft: 40 }} />
+                    <div style={{ height: 1, background: 'rgba(255, 255, 255, 0.06)', marginLeft: 44 }} />
                   )}
                 </React.Fragment>
               );
@@ -171,18 +174,18 @@ export const Analyze: React.FC = () => {
           {/* Progress Bar */}
           <div style={{ width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-text-3)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-text-3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
                 Pipeline Progress
               </span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--c-text-1)', fontFamily: 'IBM Plex Mono, monospace' }}>
+              <span style={{ fontSize: 14, fontWeight: 900, color: '#ffffff', fontFamily: 'IBM Plex Mono, monospace' }}>
                 {pct}%
               </span>
             </div>
-            <div style={{ width: '100%', height: 3, background: 'var(--c-surface-2)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: 4, background: 'rgba(255, 255, 255, 0.08)', borderRadius: 2, overflow: 'hidden' }}>
               <motion.div
                 animate={{ width: `${pct}%` }}
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                style={{ height: '100%', background: '#f4f4f5', borderRadius: 2 }}
+                style={{ height: '100%', background: '#ffffff', borderRadius: 2 }}
               />
             </div>
           </div>
