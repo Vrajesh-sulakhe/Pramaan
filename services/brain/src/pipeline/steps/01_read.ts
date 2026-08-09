@@ -1,81 +1,58 @@
+// IBM: Docling — PDF/image structured extraction (Ajit)
+// Built with IBM Bob — AI SDLC Partner
+
 import type { RunRequest, ExtractedField } from "@pramaan/contracts";
 import { applyConfidenceGate } from "../confidence.js";
-import { createWorker } from "tesseract.js";
 
 export async function read(req: RunRequest): Promise<ExtractedField[]> {
   // ═══════════════ AJIT SEAM — START ═══════════════
-  // This implementation uses tesseract.js to produce ExtractedField[] that
-  // conforms to the contract. On blank/unreadable input returns [] and
-  // always calls applyConfidenceGate(fields) before returning.
-  // NOTE: Do not re-implement the 0.90 threshold — applyConfidenceGate handles it.
+  // TODO(ajit): replace this stub body with the real OCR/Docling call.
+  // Contract: signature, types, and orchestrator wiring are Murgesh's.
+  // Replace ONLY the body between the seam markers. Nothing else.
+  //
+  // RULES FOR YOUR BODY:
+  //   1. Report numbers EXACTLY as read — never "fix" a shaky value.
+  //   2. Call applyConfidenceGate(fields) before returning (already imported).
+  //      Do NOT reimplement the 0.90 threshold. One gate, one threshold.
+  //   3. On blank/unreadable input, return []. Never throw.
+  //   4. Docling for PDFs, Tesseract fallback for plain images.
+  //   5. Dynamic-import your OCR dep inside this seam zone so the trunk
+  //      compiles and starts without it installed:
+  //        const { createWorker } = await import('tesseract.js');
+  //
+  // The req.image field is either a base64 string or a file path to a PDF.
+  void req; // suppress unused warning in stub
 
-  try {
-    const imageInput = req.image;
-    if (!imageInput) return [];
+  const stubFields: ExtractedField[] = [
+    {
+      // High-confidence MRI scan — charged above official rate (exercises gap detection)
+      text: "MRI Brain scan",
+      value: 8500,
+      unit: "per scan",
+      bbox: [50, 120, 300, 20],
+      confidence: 0.97,
+      low_conf: false,
+    },
+    {
+      // LOW CONFIDENCE paracetamol line — exercises yellow gate + staged hold path
+      text: "Paracetamol 500mg tablet x 10",
+      value: 45,
+      unit: "per tablet",
+      bbox: [50, 160, 300, 20],
+      confidence: 0.81,
+      low_conf: true, // below 0.90 threshold
+    },
+    {
+      // Blood test at official rate — exercises "ok" path
+      text: "CBC / Complete Blood Count",
+      value: 150,
+      unit: "per test",
+      bbox: [50, 200, 300, 20],
+      confidence: 0.95,
+      low_conf: false,
+    },
+  ];
 
-    // Accept either a Buffer (binary) or a base64 string
-    let buffer: Buffer;
-    if (typeof imageInput === "string") {
-      // base64 data URL or path — attempt to detect base64
-      const maybeBase64 = imageInput.trim();
-      if (/^data:/.test(maybeBase64) || /^[A-Za-z0-9+/]+=*$/.test(maybeBase64.replace(/^data:.*;base64,/, ""))) {
-        const b64 = maybeBase64.replace(/^data:.*;base64,/, "");
-        buffer = Buffer.from(b64, "base64");
-      } else {
-        // treat as file path
-        try {
-          buffer = await import("fs").then((m) => m.promises.readFile(imageInput));
-        } catch (err) {
-          // unreadable path -> graceful empty
-          console.warn("read(): could not read image path, returning [].", err);
-          return [];
-        }
-      }
-    } else if (Buffer.isBuffer(imageInput)) {
-      buffer = imageInput as Buffer;
-    } else {
-      return [];
-    }
-
-    if (!buffer || buffer.length === 0) return [];
-
-    const worker = createWorker();
-    await worker.load();
-    await worker.loadLanguage("eng");
-    await worker.initialize("eng");
-
-    try {
-      const { data } = await worker.recognize(buffer as any);
-      const fields: ExtractedField[] = [];
-
-      (data.lines || []).forEach((line: any, idx: number) => {
-        const conf = typeof line.confidence === "number" ? line.confidence / 100.0 : 0;
-        const bbox = line.bbox
-          ? [line.bbox.x0, line.bbox.y0, line.bbox.x1, line.bbox.y1]
-          : [0, 0, 0, 0];
-
-        // Start with low_conf false; applyConfidenceGate will set correct flags
-        fields.push({
-          text: (line.text || "").trim(),
-          value: (line.text || "").trim(),
-          unit: null,
-          bbox,
-          confidence: conf,
-          low_conf: false
-        } as ExtractedField);
-      });
-
-      return applyConfidenceGate(fields);
-    } catch (err) {
-      console.error("OCR Pipeline Crashed. Returning empty array.", err);
-      return [];
-    } finally {
-      await worker.terminate();
-    }
-  } catch (err) {
-    console.error("read(): unexpected error, returning [].", err);
-    return [];
-  }
+  return applyConfidenceGate(stubFields);
   // ═══════════════ AJIT SEAM — END ══════════════════
-}
 }
