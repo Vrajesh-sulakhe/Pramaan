@@ -6,6 +6,7 @@
     "moduleResolution": "node16",
     "module": "node16",
     "ignoreDeprecations": "5.0",
+    "skipLibCheck": true,
     "paths": {
       "@pramaan/contracts": ["../../packages/contracts/types.ts"]
     }
