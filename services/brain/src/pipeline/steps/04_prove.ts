@@ -20,14 +20,21 @@ export function prove(
 ): ProofCard[] {
   const cards: ProofCard[] = [];
 
-  for (const cr of compares) {
-    // Find the rule that matches this field (search by match_terms again)
-    const fieldLower = cr.field.text.toLowerCase();
-    let matchedRule: RuleRow | undefined;
-    for (const rule of rules.values()) {
-      if (rule.match_terms.some((t) => fieldLower.includes(t.toLowerCase()))) {
-        matchedRule = rule;
-        break;
+  for (let i = 0; i < compares.length; i++) {
+    const cr = compares[i]!;
+    
+    // Find the rule matched for this field
+    const fieldIndex = _fields.indexOf(cr.field);
+    let matchedRule: RuleRow | undefined = fieldIndex >= 0 ? rules.get(String(fieldIndex)) : rules.get(String(i));
+
+    if (!matchedRule) {
+      const fieldLower = cr.field.text.toLowerCase();
+      for (const rule of rules.values()) {
+        const terms = (rule.match_terms || []).map(t => String(t));
+        if (terms.some((t) => t && fieldLower.includes(t.toLowerCase()))) {
+          matchedRule = rule;
+          break;
+        }
       }
     }
 
@@ -51,27 +58,27 @@ export function prove(
       continue;
     }
 
-    let ruleAnchorRef = "Official Regulatory Schedule";
-    let ruleAnchorUrl: string | undefined;
+    let ruleAnchorRef = (matchedRule as any).official_source || 
+                        (matchedRule as any).law_ref || 
+                        (matchedRule as any).clause_ref || 
+                        (matchedRule as any).circular_ref || 
+                        (matchedRule as any).section_ref || 
+                        "Official Regulatory Schedule";
+    
+    let ruleAnchorUrl: string | undefined = (matchedRule as any).official_source_url || 
+                                            (matchedRule as any).law_ref_url || 
+                                            (matchedRule as any).clause_ref_url || 
+                                            (matchedRule as any).circular_ref_url || 
+                                            (matchedRule as any).source_url || 
+                                            (matchedRule as any).section_ref_url;
 
-    if (matchedRule.domain === "bill") {
-      ruleAnchorRef = matchedRule.official_source;
-      ruleAnchorUrl = matchedRule.official_source_url;
-    } else if (matchedRule.domain === "lease") {
-      ruleAnchorRef = matchedRule.law_ref;
-      ruleAnchorUrl = matchedRule.law_ref_url;
-    } else if (matchedRule.domain === "gig_payslip") {
-      ruleAnchorRef = matchedRule.clause_ref;
-      ruleAnchorUrl = matchedRule.clause_ref_url;
-    } else if (matchedRule.domain === "insurance") {
-      ruleAnchorRef = matchedRule.circular_ref;
-      ruleAnchorUrl = matchedRule.circular_ref_url;
-    } else if (matchedRule.domain === "medicine") {
-      ruleAnchorRef = `${matchedRule.source_authority} Notification`;
-      ruleAnchorUrl = matchedRule.source_url;
-    } else if (matchedRule.domain === "challan") {
-      ruleAnchorRef = matchedRule.section_ref;
-      ruleAnchorUrl = matchedRule.section_ref_url;
+    let ruleSays = matchedRule.rule_says_plain;
+    if (!ruleSays) {
+      if (cr.status === "gap") {
+        ruleSays = `Statutory ceiling of ₹${cr.official_value} exceeded by ₹${cr.gap}.`;
+      } else {
+        ruleSays = `Complies with official statutory standard of ₹${cr.official_value}.`;
+      }
     }
 
     cards.push({
@@ -90,7 +97,7 @@ export function prove(
         url: ruleAnchorUrl,
       },
       compute_anchor: `${cr.your_value} - ${cr.official_value}`,
-      rule_says_plain: matchedRule.rule_says_plain,
+      rule_says_plain: ruleSays,
     });
   }
 

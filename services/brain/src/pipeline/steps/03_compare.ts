@@ -28,12 +28,25 @@ export function compare(
 ): CompareResult[] {
   const results: CompareResult[] = [];
 
-  // Detect rent for lease calculations
-  let monthlyRent = 35000;
+  // Extract contextual numbers across all fields
+  let monthlyRent: number | null = null;
+  let grossFare: number | null = null;
+  let totalClaim: number | null = null;
+  let approvedClaim: number | null = null;
+
   for (const f of fields) {
     const l = f.text.toLowerCase();
-    if (l.includes("rent") && !l.includes("deposit") && f.value) {
+    if (l.includes("rent") && !l.includes("deposit") && !l.includes("room rent") && f.value) {
       monthlyRent = f.value;
+    }
+    if ((l.includes("fare") || l.includes("gross")) && f.value) {
+      grossFare = f.value;
+    }
+    if ((l.includes("claim") || l.includes("total bill") || l.includes("incurred")) && f.value && f.value > 10000) {
+      totalClaim = f.value;
+    }
+    if ((l.includes("approved") || l.includes("settled")) && f.value) {
+      approvedClaim = f.value;
     }
   }
 
@@ -43,16 +56,17 @@ export function compare(
     if (!rule) continue;
 
     const lower = field.text.toLowerCase();
+    const billedVal = field.value ?? 0;
 
-    // 1. LEASE DOMAIN
+    // 1. LEASE DOMAIN (Model Tenancy Act)
     if (rule.domain === "lease" || lower.includes("deposit") || lower.includes("rent") || lower.includes("escalation")) {
       if (lower.includes("deposit")) {
-        const depositVal = field.value ?? 350000;
-        const legalCap = monthlyRent * 2;
-        const gap = Math.max(0, depositVal - legalCap);
+        const rentBase = monthlyRent || (billedVal > 50000 ? Math.round(billedVal / 10) : 35000);
+        const legalCap = rentBase * 2;
+        const gap = Math.max(0, billedVal - legalCap);
         results.push({
           field,
-          your_value: depositVal,
+          your_value: billedVal,
           official_value: legalCap,
           gap,
           status: gap > 0 ? "gap" : "ok",
@@ -60,43 +74,44 @@ export function compare(
       } else if (lower.includes("rent")) {
         results.push({
           field,
-          your_value: field.value ?? monthlyRent,
-          official_value: field.value ?? monthlyRent,
+          your_value: billedVal,
+          official_value: billedVal,
           gap: 0,
           status: "ok",
         });
       } else {
+        // Clauses like escalation or structural repairs
         results.push({
           field,
-          your_value: field.value ?? 15,
+          your_value: billedVal,
           official_value: 0,
-          gap: field.value ?? 15,
+          gap: billedVal,
           status: "gap",
         });
       }
       continue;
     }
 
-    // 2. GIG PAYSLIP DOMAIN
+    // 2. GIG PAYSLIP DOMAIN (MoRTH Aggregator Guidelines)
     if (rule.domain === "gig_payslip" || lower.includes("fare") || lower.includes("commission") || lower.includes("payout")) {
+      const fareBase = grossFare || (billedVal > 2000 ? billedVal : 5000);
+
       if (lower.includes("commission")) {
-        const commissionDeducted = field.value ?? 2200;
-        const maxAllowedCommission = 1000; // 20% of ₹5,000
-        const gap = Math.max(0, commissionDeducted - maxAllowedCommission);
+        const maxCommission = Math.round(fareBase * 0.20);
+        const gap = Math.max(0, billedVal - maxCommission);
         results.push({
           field,
-          your_value: commissionDeducted,
-          official_value: maxAllowedCommission,
+          your_value: billedVal,
+          official_value: maxCommission,
           gap,
           status: gap > 0 ? "gap" : "ok",
         });
-      } else if (lower.includes("payout")) {
-        const actualPayout = field.value ?? 2800;
-        const minPayout = 4000; // 80% of ₹5,000
-        const gap = Math.max(0, minPayout - actualPayout);
+      } else if (lower.includes("payout") || lower.includes("driver")) {
+        const minPayout = Math.round(fareBase * 0.80);
+        const gap = Math.max(0, minPayout - billedVal);
         results.push({
           field,
-          your_value: actualPayout,
+          your_value: billedVal,
           official_value: minPayout,
           gap,
           status: gap > 0 ? "gap" : "ok",
@@ -104,8 +119,8 @@ export function compare(
       } else {
         results.push({
           field,
-          your_value: field.value ?? 5000,
-          official_value: field.value ?? 5000,
+          your_value: billedVal,
+          official_value: billedVal,
           gap: 0,
           status: "ok",
         });
@@ -113,22 +128,25 @@ export function compare(
       continue;
     }
 
-    // 3. INSURANCE DOMAIN
+    // 3. INSURANCE DOMAIN (IRDAI Circulars)
     if (rule.domain === "insurance" || lower.includes("deduction") || lower.includes("room rent") || lower.includes("claim")) {
       if (lower.includes("deduction") || lower.includes("disallowed")) {
-        const deductionVal = field.value ?? 35000;
+        let deduction = billedVal;
+        if (deduction === 0 && totalClaim && approvedClaim) {
+          deduction = totalClaim - approvedClaim;
+        }
         results.push({
           field,
-          your_value: deductionVal,
+          your_value: deduction,
           official_value: 0,
-          gap: deductionVal,
-          status: deductionVal > 0 ? "gap" : "ok",
+          gap: deduction,
+          status: deduction > 0 ? "gap" : "ok",
         });
       } else {
         results.push({
           field,
-          your_value: field.value ?? 0,
-          official_value: field.value ?? 0,
+          your_value: billedVal,
+          official_value: billedVal,
           gap: 0,
           status: "ok",
         });
@@ -136,14 +154,16 @@ export function compare(
       continue;
     }
 
-    // 4. MEDICINE DOMAIN
+    // 4. MEDICINE DOMAIN (NPPA DPCO & CDSCO Recall)
     if (rule.domain === "medicine" || lower.includes("strip") || lower.includes("recall") || lower.includes("tablets") || lower.includes("azithromycin")) {
-      const billedPrice = field.value ?? 45;
-      const ceilingPrice = (rule as any).official_value ?? (lower.includes("paracetamol") ? 22 : 0);
-      const gap = Math.max(0, billedPrice - ceilingPrice);
+      let ceilingPrice = (rule as any).official_value;
+      if (ceilingPrice === undefined || ceilingPrice === null) {
+        ceilingPrice = lower.includes("paracetamol") ? 22 : 0;
+      }
+      const gap = Math.max(0, billedVal - ceilingPrice);
       results.push({
         field,
-        your_value: billedPrice,
+        your_value: billedVal,
         official_value: ceilingPrice,
         gap,
         status: gap > 0 ? "gap" : "ok",
@@ -151,22 +171,20 @@ export function compare(
       continue;
     }
 
-    // 5. CHALLAN DOMAIN
+    // 5. CHALLAN DOMAIN (Motor Vehicles Act)
     if (rule.domain === "challan" || lower.includes("fine") || lower.includes("speed") || lower.includes("violation") || lower.includes("notice")) {
-      const fineVal = field.value ?? 2000;
       results.push({
         field,
-        your_value: fineVal,
+        your_value: billedVal,
         official_value: 0,
-        gap: fineVal,
-        status: fineVal > 0 ? "gap" : "ok",
+        gap: billedVal,
+        status: billedVal > 0 ? "gap" : "ok",
       });
       continue;
     }
 
-    // 6. MEDICAL BILL DOMAIN (Standard BillRuleRow)
+    // 6. MEDICAL BILL DOMAIN (CGHS Tariff Schedule)
     const officialRate = (rule as any).official_value ?? (rule as any).cghs_delhi_rate_nabh ?? (rule as any).cghs_delhi_rate_non_nabh ?? 0;
-    const billedVal = field.value ?? 0;
     const gap = Math.max(0, billedVal - officialRate);
 
     results.push({

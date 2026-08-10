@@ -27,11 +27,28 @@ export async function read(req: RunRequest): Promise<ExtractedField[]> {
 
     if (!isImageBase64 && !isFilePath && !isPdf) {
       const lines = req.image.split("\n").map(l => l.trim()).filter(Boolean);
-      const textFields: ExtractedField[] = lines.map(line => {
-        const numMatch = line.match(/(?:₹|INR|Rs\.?|:\s*₹?)\s*([\d,]+(?:\.\d+)?)/i) || line.match(/([\d,]+(?:\.\d+)?)\s*$/) || line.match(/([\d,]+(?:\.\d+)?)/);
-        const value = numMatch ? parseFloat(numMatch[1]!.replace(/,/g, "")) : null;
-        let unit: ExtractedField["unit"] = null;
+      const textFields: ExtractedField[] = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]!;
+        // Skip purely metadata lines (dates, patient names, headers) unless they have monetary or penalty values
         const lower = line.toLowerCase();
+        const isHeader = lower.startsWith("patient:") || lower.startsWith("date:") || lower.startsWith("department:") || lower.startsWith("store:") || lower.startsWith("landlord:") || lower.startsWith("tenant:") || lower.startsWith("property:") || lower.startsWith("driver:") || lower.startsWith("platform:") || lower.startsWith("week:") || lower.startsWith("policyholder:") || lower.startsWith("insurer:") || lower.startsWith("hospital:") || lower.startsWith("notice no:") || lower.startsWith("vehicle no:");
+
+        // Extract currency amount / value
+        const numMatch = line.match(/(?:₹|INR|Rs\.?|:\s*₹?)\s*([\d,]+(?:\.\d+)?)/i) || 
+                         (!isHeader ? line.match(/[:=-]\s*([\d,]+(?:\.\d+)?)/) : null) ||
+                         (!isHeader ? line.match(/([\d,]+(?:\.\d+)?)\s*$/) : null);
+        
+        let value: number | null = null;
+        if (numMatch && numMatch[1]) {
+          const parsedVal = parseFloat(numMatch[1].replace(/,/g, ""));
+          if (!isNaN(parsedVal)) {
+            value = parsedVal;
+          }
+        }
+
+        let unit: ExtractedField["unit"] = null;
         if (lower.includes("per tablet") || lower.includes("/tab") || lower.includes("per strip") || lower.includes("/strip"))
           unit = "per tablet";
         else if (lower.includes("per scan") || lower.includes("/scan"))
@@ -43,15 +60,19 @@ export async function read(req: RunRequest): Promise<ExtractedField[]> {
         else if (lower.includes("grand total") || lower.includes("total amount") || lower.includes("net payable"))
           unit = "total";
 
-        return {
-          text: line,
-          value,
-          unit,
-          bbox: [0, 0, 100, 20] as [number, number, number, number],
-          confidence: 0.98,
-          low_conf: false
-        };
-      });
+        // If line has an explicit item or number
+        if (value !== null || !isHeader) {
+          textFields.push({
+            text: line,
+            value,
+            unit,
+            bbox: [0, Math.min(100, i * 15), 100, 15] as [number, number, number, number],
+            confidence: 0.98,
+            low_conf: false
+          });
+        }
+      }
+
       if (textFields.length > 0) {
         return applyConfidenceGate(textFields);
       }
