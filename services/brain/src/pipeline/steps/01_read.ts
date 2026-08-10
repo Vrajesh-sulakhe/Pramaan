@@ -17,13 +17,45 @@ export async function read(req: RunRequest): Promise<ExtractedField[]> {
       return [];
     }
 
-    // ── PDF detection ────────────────────────────────────────────────────────
-    // Detect PDF by MIME prefix (base64 data URI) or file extension.
-    // Tesseract cannot read PDF byte streams — try Docling first.
+    // ── Format detection ──────────────────────────────────────────────────
     const isPdf =
       req.image.startsWith("data:application/pdf") ||
       req.image.startsWith("%PDF") ||
       req.image.toLowerCase().endsWith(".pdf");
+    const isImageBase64 = req.image.startsWith("data:image/") || req.image.includes(";base64,");
+    const isFilePath = req.image.startsWith("/") || req.image.startsWith("./");
+
+    if (!isImageBase64 && !isFilePath && !isPdf) {
+      const lines = req.image.split("\n").map(l => l.trim()).filter(Boolean);
+      const textFields: ExtractedField[] = lines.map(line => {
+        const numMatch = line.match(/(?:₹|INR|Rs\.?|:\s*₹?)\s*([\d,]+(?:\.\d+)?)/i) || line.match(/([\d,]+(?:\.\d+)?)\s*$/) || line.match(/([\d,]+(?:\.\d+)?)/);
+        const value = numMatch ? parseFloat(numMatch[1]!.replace(/,/g, "")) : null;
+        let unit: ExtractedField["unit"] = null;
+        const lower = line.toLowerCase();
+        if (lower.includes("per tablet") || lower.includes("/tab") || lower.includes("per strip") || lower.includes("/strip"))
+          unit = "per tablet";
+        else if (lower.includes("per scan") || lower.includes("/scan"))
+          unit = "per scan";
+        else if (lower.includes("per day") || lower.includes("/day"))
+          unit = "per day";
+        else if (lower.includes("per procedure") || lower.includes("/procedure"))
+          unit = "per procedure";
+        else if (lower.includes("grand total") || lower.includes("total amount") || lower.includes("net payable"))
+          unit = "total";
+
+        return {
+          text: line,
+          value,
+          unit,
+          bbox: [0, 0, 100, 20] as [number, number, number, number],
+          confidence: 0.98,
+          low_conf: false
+        };
+      });
+      if (textFields.length > 0) {
+        return applyConfidenceGate(textFields);
+      }
+    }
 
     if (isPdf) {
       try {

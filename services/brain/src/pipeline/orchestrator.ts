@@ -10,8 +10,8 @@ import { prove } from "./steps/04_prove.js";
 import { act } from "./steps/05_act.js";
 import { draft } from "./steps/06_draft.js";
 
-// Raised from 10s → 15s to accommodate Ajit's real OCR (large images) + Granite latency
-const STEP_TIMEOUT_MS = 15_000;
+// Raised to accommodate local LLM inference latency
+const STEP_TIMEOUT_MS = 30_000;
 
 /** Wraps a promise with a timeout. Rejects if the step takes longer than timeoutMs. */
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, stepName: string): Promise<T> {

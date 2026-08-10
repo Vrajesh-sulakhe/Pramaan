@@ -51,7 +51,7 @@ export async function draft(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "local-model",
+          model: process.env.GRANITE_MODEL || "granite-4.1-8b",
           messages: [
             {
               role: "system",
@@ -64,7 +64,7 @@ export async function draft(
             },
           ],
           temperature: 0.2,
-          max_tokens: 500,
+          max_tokens: 250,
           stream: false,
         }),
       });
@@ -101,7 +101,7 @@ export async function draft(
     }
 
     // ── NUMBER GUARD (applies to BOTH paths) ────────────────────────────
-    const numbersInText = draftText.match(/₹?\s*([\d,]+\.?\d*)/g) || [];
+    const numbersInText = draftText.match(/(?:₹|Rs\.?|INR)\s*([\d,]+(?:\.\d+)?)/gi) || [];
     const validNumbers = new Set([
       ...gapCards.map((c) => String(c.your_value)),
       ...gapCards.map((c) => String(c.official_value)),
@@ -110,10 +110,9 @@ export async function draft(
     ]);
 
     const hasHallucinatedNumber = numbersInText.some((n) => {
-      const cleaned = n.replace(/[₹,\s]/g, "");
-      // Only flag numbers that look like actual amounts (> 50) and aren't valid numbers
+      const cleaned = n.replace(/[₹,\sRs\.INRinr]/gi, "").replace(/,/g, "");
       const numVal = parseFloat(cleaned);
-      return !isNaN(numVal) && numVal > 50 && !validNumbers.has(cleaned) && !validNumbers.has(String(numVal));
+      return !isNaN(numVal) && !validNumbers.has(cleaned) && !validNumbers.has(String(numVal));
     });
 
     if (hasHallucinatedNumber) {

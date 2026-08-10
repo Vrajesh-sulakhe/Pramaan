@@ -2,6 +2,8 @@
 // Express API Server — 6-Domain Multi-Regulatory Architecture
 
 import express, { type Request, type Response, type NextFunction } from "express";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { orchestrate } from "./pipeline/orchestrator.js";
 import { billingGateway } from "./gateway/billing_gateway.js";
 import { auditLog } from "./audit/audit_log.js";
@@ -17,6 +19,32 @@ import {
 } from "./seeds/trap.js";
 import { CONTROL_SEED_FIELDS, FIXED_CONTROL_RUN_ID } from "./seeds/control.js";
 import type { Domain } from "@pramaan/contracts";
+
+// Load .env and services/brain/.env
+function loadEnv(): void {
+  const paths = [
+    resolve(process.cwd(), ".env"),
+    resolve(process.cwd(), "services", "brain", ".env"),
+  ];
+  for (const p of paths) {
+    if (existsSync(p)) {
+      try {
+        const text = readFileSync(p, "utf-8");
+        for (const line of text.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("#")) continue;
+          const eqIdx = trimmed.indexOf("=");
+          if (eqIdx !== -1) {
+            const key = trimmed.slice(0, eqIdx).trim();
+            const val = trimmed.slice(eqIdx + 1).split("#")[0]?.trim() ?? "";
+            if (key) process.env[key] = val;
+          }
+        }
+      } catch {}
+    }
+  }
+}
+loadEnv();
 
 function apiError(
   res: Response,
