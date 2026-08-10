@@ -28,7 +28,7 @@ export function compare(
 ): CompareResult[] {
   const results: CompareResult[] = [];
 
-  // Find monthly rent if present in lease fields
+  // Detect rent for lease calculations
   let monthlyRent = 35000;
   for (const f of fields) {
     const l = f.text.toLowerCase();
@@ -137,9 +137,9 @@ export function compare(
     }
 
     // 4. MEDICINE DOMAIN
-    if (rule.domain === "medicine" || lower.includes("strip") || lower.includes("recall") || lower.includes("tablets")) {
+    if (rule.domain === "medicine" || lower.includes("strip") || lower.includes("recall") || lower.includes("tablets") || lower.includes("azithromycin")) {
       const billedPrice = field.value ?? 45;
-      const ceilingPrice = rule.nppa_ceiling_price ?? (lower.includes("paracetamol") ? 22 : 0);
+      const ceilingPrice = (rule as any).official_value ?? (lower.includes("paracetamol") ? 22 : 0);
       const gap = Math.max(0, billedPrice - ceilingPrice);
       results.push({
         field,
@@ -152,7 +152,7 @@ export function compare(
     }
 
     // 5. CHALLAN DOMAIN
-    if (rule.domain === "challan" || lower.includes("fine") || lower.includes("speed") || lower.includes("violation")) {
+    if (rule.domain === "challan" || lower.includes("fine") || lower.includes("speed") || lower.includes("violation") || lower.includes("notice")) {
       const fineVal = field.value ?? 2000;
       results.push({
         field,
@@ -165,7 +165,7 @@ export function compare(
     }
 
     // 6. MEDICAL BILL DOMAIN (Standard BillRuleRow)
-    const officialRate = rule.official_value ?? rule.cghs_delhi_rate_nabh ?? rule.cghs_delhi_rate_non_nabh ?? 0;
+    const officialRate = (rule as any).official_value ?? (rule as any).cghs_delhi_rate_nabh ?? (rule as any).cghs_delhi_rate_non_nabh ?? 0;
     const billedVal = field.value ?? 0;
     const gap = Math.max(0, billedVal - officialRate);
 
