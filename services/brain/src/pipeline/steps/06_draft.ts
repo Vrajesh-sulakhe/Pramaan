@@ -2,9 +2,6 @@
 // Built with IBM Bob — AI SDLC Partner
 
 import type { ProofCard, HoldEvent, Draft } from "@pramaan/contracts";
-import fs from "fs";
-import path from "path";
-import { auditLog } from "../../audit/audit_log.js";
 
 export async function draft(
   cards: ProofCard[],
@@ -14,119 +11,119 @@ export async function draft(
   // ═══════════════ AJIT SEAM — START ═══════════════
   const AI_BANNER = "AI-generated — review before sending";
 
+  // Determine LLM path: LM Studio (local) or IBM watsonx (cloud)
+  const USE_LOCAL_LLM = !process.env.WATSONX_API_KEY || process.env.USE_LOCAL_LLM === "true";
+
+  // Only gap cards belong in a dispute letter
+  const gapCards = cards.filter((c) => c.status === "gap");
+  if (gapCards.length === 0) {
+    return templateFillStub(cards, hold, template);
+  }
+
+  // Build a grounded prompt from gap card data only — no hallucination surface
+  const prompt =
+    "You are a professional medical billing advocate. Write a formal complaint letter to the hospital billing department.\n\n" +
+    "OVERCHARGES DETECTED:\n" +
+    gapCards
+      .map(
+        (c, i) =>
+          `${i + 1}. ${c.item}: Charged ₹${c.your_value}, Official rate ₹${c.official_value}, Overcharge ₹${c.gap}. ${c.rule_says_plain}`
+      )
+      .join("\n") +
+    (hold !== null
+      ? `\n\nPROVISIONAL HOLD: A hold of ₹${hold.amount} has been placed on this invoice. It will auto-release in 72 hours unless confirmed by the patient.`
+      : "") +
+    "\n\nINSTRUCTIONS:\n" +
+    "- Use ONLY the numbers provided above. Do not invent any amounts.\n" +
+    "- Keep the tone professional, factual, and firm.\n" +
+    "- Request a refund of the overcharged amount.\n" +
+    "- Reference the official source for each overcharge.\n" +
+    "- End with a request for written confirmation of the refund.";
+
   try {
-    // Only gap cards belong in a dispute letter
-    const gapCards = cards.filter((c) => c.status === "gap");
-    if (gapCards.length === 0) {
-      return templateFillStub(cards, hold, template);
+    let draftText = "";
+
+    if (USE_LOCAL_LLM) {
+      // ── PATH A: LM Studio Local Fallback ──────────────────────────────
+      console.log("[06_draft] Using LM Studio local LLM");
+
+      const response = await fetch("http://localhost:1234/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "local-model",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a formal complaint letter writer for hospital billing disputes. Use ONLY the numbers provided in the user message. Do not invent any amounts. Keep tone professional, factual, and firm. Reference the official source for each overcharge.",
+            },
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          temperature: 0.2,
+          max_tokens: 500,
+          stream: false,
+        }),
+      });
+
+      if (!response.ok) throw new Error(`LM Studio error: ${response.status}`);
+      const data = (await response.json()) as any;
+      draftText = data.choices?.[0]?.message?.content || "";
+
+      if (!draftText.trim()) throw new Error("LM Studio returned empty text");
+    } else {
+      // ── PATH B: IBM watsonx.ai Granite (when credentials available) ───
+      console.log("[06_draft] Using IBM watsonx.ai Granite");
+
+      const { WatsonXAI } = await import("@ibm-cloud/watsonx-ai");
+      const wx = new WatsonXAI({
+        apikey: process.env.WATSONX_API_KEY!,
+        serviceUrl: process.env.WATSONX_URL || "https://us-south.ml.cloud.ibm.com",
+      });
+
+      const graniteResponse = await Promise.race([
+        wx
+          .generateText({
+            modelId: process.env.GRANITE_MODEL_ID || "ibm/granite-3-8b-instruct",
+            input: prompt,
+            parameters: { max_new_tokens: 500, temperature: 0.2 },
+          })
+          .then((res: any) => res.result.results[0].generated_text),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Granite timeout")), 10_000)
+        ),
+      ]);
+
+      draftText = graniteResponse;
     }
 
-    // Verify required env vars are present — fall back gracefully if not
-    const apiKey = process.env["WATSONX_API_KEY"];
-    const projectId = process.env["WATSONX_PROJECT_ID"];
-    const serviceUrl =
-      process.env["WATSONX_URL"] ?? "https://us-south.ml.cloud.ibm.com";
-
-    if (!apiKey || !projectId) {
-      console.warn("[06_draft] WATSONX env vars missing — using fallback.");
-      return templateFillStub(cards, hold, template);
-    }
-
-    // Build a grounded prompt from gap card data only — no hallucination surface
-    const prompt =
-      "You are a professional medical billing advocate. Write a formal complaint letter to the hospital billing department.\n\n" +
-      "OVERCHARGES DETECTED:\n" +
-      gapCards
-        .map(
-          (c, i) =>
-            `${i + 1}. ${c.item}: Charged ₹${c.your_value}, Official rate ₹${c.official_value}, Overcharge ₹${c.gap}. ${c.rule_says_plain}`
-        )
-        .join("\n") +
-      (hold !== null
-        ? `\n\nPROVISIONAL HOLD: A hold of ₹${hold.amount} has been placed on this invoice. It will auto-release in 72 hours unless confirmed by the patient.`
-        : "") +
-      "\n\nINSTRUCTIONS:\n" +
-      "- Use ONLY the numbers provided above. Do not invent any amounts.\n" +
-      "- Keep the tone professional, factual, and firm.\n" +
-      "- Request a refund of the overcharged amount.\n" +
-      "- Reference the official source for each overcharge.\n" +
-      "- End with a request for written confirmation of the refund.";
-
-    // Dynamic imports — trunk compiles without these deps installed
-    const { WatsonXAI } = await import("@ibm-cloud/watsonx-ai");
-    const { IamAuthenticator } = await import("ibm-cloud-sdk-core");
-
-    const service = WatsonXAI.newInstance({
-      authenticator: new IamAuthenticator({ apikey: apiKey }),
-      serviceUrl,
-      version: "2023-05-29",
-    });
-
-    // Race Granite against a 10-second timeout
-    const graniteText = await Promise.race([
-      service
-        .generateText({
-          modelId: "ibm/granite-3-8b-instruct",
-          projectId,
-          input: prompt,
-          parameters: { max_new_tokens: 800, temperature: 0.2 },
-        })
-        .then((r) => r.result?.results?.[0]?.generated_text ?? ""),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Granite timeout")), 10_000)
-      ),
+    // ── NUMBER GUARD (applies to BOTH paths) ────────────────────────────
+    const numbersInText = draftText.match(/₹?\s*([\d,]+\.?\d*)/g) || [];
+    const validNumbers = new Set([
+      ...gapCards.map((c) => String(c.your_value)),
+      ...gapCards.map((c) => String(c.official_value)),
+      ...gapCards.map((c) => String(c.gap)),
+      hold ? String(hold.amount) : "",
     ]);
 
-    // Empty or whitespace output → fall back rather than send a blank letter
-    if (!graniteText || graniteText.trim().length === 0) {
-      console.warn("[06_draft] Granite returned empty output — using fallback.");
-      return templateFillStub(cards, hold, template);
+    const hasHallucinatedNumber = numbersInText.some((n) => {
+      const cleaned = n.replace(/[₹,\s]/g, "");
+      // Only flag numbers that look like actual amounts (> 50) and aren't valid numbers
+      const numVal = parseFloat(cleaned);
+      return !isNaN(numVal) && numVal > 50 && !validNumbers.has(cleaned) && !validNumbers.has(String(numVal));
+    });
+
+    if (hasHallucinatedNumber) {
+      console.error("[06_draft] Number guard triggered — hallucinated value detected. Falling back to template.");
+      throw new Error("Hallucinated number — falling back to template");
     }
 
-    // ── Number guard ──────────────────────────────────────────────────────────
-    // Build the set of all numbers that legitimately appear in gap cards + hold.
-    // Any number Granite outputs that is NOT in this set is a hallucination.
-    const validNumbers = new Set<number>();
-    for (const c of gapCards) {
-      validNumbers.add(c.your_value);
-      validNumbers.add(c.official_value);
-      validNumbers.add(c.gap);
-    }
-    if (hold !== null) validNumbers.add(hold.amount);
-
-    // Extract every numeric token from Granite's output
-    const numPattern = /₹?\s*([\d,]+\.?\d*)/g;
-    const discardedNumbers: number[] = [];
-    let match: RegExpExecArray | null;
-    while ((match = numPattern.exec(graniteText)) !== null) {
-      const parsed = parseFloat(match[1]!.replace(/,/g, ""));
-      if (!isNaN(parsed) && !validNumbers.has(parsed)) {
-        discardedNumbers.push(parsed);
-      }
-    }
-
-    if (discardedNumbers.length > 0) {
-      console.warn(
-        "[06_draft] Number guard triggered — Granite hallucinated a value. Falling back.",
-        { discarded: discardedNumbers, valid: [...validNumbers] }
-      );
-      auditLog.append({
-        t: "error",
-        run_id: "draft-run-unknown",
-        ts: new Date().toISOString(),
-        payload: {
-          event: "granite_guard_triggered",
-          discarded_numbers: discardedNumbers,
-          valid_numbers: [...validNumbers],
-        },
-      });
-      return templateFillStub(cards, hold, template);
-    }
-
-    // Banner is a system label — never part of the generated content
-    return { text: graniteText.trim(), banner: AI_BANNER };
+    return { text: draftText.trim(), banner: AI_BANNER };
   } catch (err) {
-    console.error("[06_draft] Granite failed, using fallback:", err);
+    console.error("[06_draft] LLM failed, using template fallback:", err);
     return templateFillStub(cards, hold, template);
   }
   // ═══════════════ AJIT SEAM — END ══════════════════
@@ -141,7 +138,7 @@ function templateFillStub(
 
   let text =
     template ||
-    "To Whom It May Concern,\n\nI am writing to dispute the following charges on my medical bill:\n\n{{ITEMS}}\n\nKindly review and issue a corrected bill.\n\nYours sincerely.";
+    "To Whom It May Concern,\n\nI am writing to dispute the following charges on my document:\n\n{{ITEMS}}\n\nKindly review and issue an immediate correction or refund.\n\nYours sincerely.";
 
   if (gapCards.length > 0) {
     const items = gapCards
